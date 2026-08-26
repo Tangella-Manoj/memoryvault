@@ -3,6 +3,7 @@ package io.memoryvault.config;
 import io.memoryvault.security.ChromeSessionAuthenticationFilter;
 import io.memoryvault.security.JwtAuthenticationFilter;
 import io.memoryvault.security.RateLimitFilter;
+import io.memoryvault.security.RestAuthenticationEntryPoint;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -25,15 +26,18 @@ public class SecurityConfig {
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final ChromeSessionAuthenticationFilter chromeSessionAuthenticationFilter;
     private final RateLimitFilter rateLimitFilter;
+    private final RestAuthenticationEntryPoint restAuthenticationEntryPoint;
 
     public SecurityConfig(
             JwtAuthenticationFilter jwtAuthenticationFilter,
             ChromeSessionAuthenticationFilter chromeSessionAuthenticationFilter,
-            RateLimitFilter rateLimitFilter
+            RateLimitFilter rateLimitFilter,
+            RestAuthenticationEntryPoint restAuthenticationEntryPoint
     ) {
         this.jwtAuthenticationFilter = jwtAuthenticationFilter;
         this.chromeSessionAuthenticationFilter = chromeSessionAuthenticationFilter;
         this.rateLimitFilter = rateLimitFilter;
+        this.restAuthenticationEntryPoint = restAuthenticationEntryPoint;
     }
 
     @Bean
@@ -47,6 +51,7 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .exceptionHandling(ex -> ex.authenticationEntryPoint(restAuthenticationEntryPoint))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers("/actuator/health").permitAll()

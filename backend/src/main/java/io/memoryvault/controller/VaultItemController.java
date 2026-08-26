@@ -4,6 +4,7 @@ import io.memoryvault.dto.ApiResponse;
 import io.memoryvault.dto.vault.SaveVaultItemRequest;
 import io.memoryvault.dto.vault.SearchResultItem;
 import io.memoryvault.dto.vault.VaultItemResponse;
+import io.memoryvault.exception.ApiException;
 import io.memoryvault.security.SecurityUtil;
 import io.memoryvault.service.VaultItemService;
 import jakarta.validation.Valid;
@@ -46,6 +47,9 @@ public class VaultItemController {
 
     @GetMapping("/search")
     public ApiResponse<List<SearchResultItem>> search(@RequestParam("q") String query) {
+        if (query == null || query.isBlank()) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "BLANK_QUERY", "q must not be empty");
+        }
         Long userId = SecurityUtil.currentUserId();
         return ApiResponse.success(vaultItemService.search(userId, query), "Search results");
     }

@@ -7,7 +7,9 @@ import io.memoryvault.domain.enums.ItemStatus;
 import io.memoryvault.dto.vault.SaveVaultItemRequest;
 import io.memoryvault.dto.vault.SearchResultItem;
 import io.memoryvault.dto.vault.VaultItemResponse;
+import io.memoryvault.exception.ApiException;
 import io.memoryvault.exception.ResourceNotFoundException;
+import org.springframework.http.HttpStatus;
 import io.memoryvault.repository.UserRepository;
 import io.memoryvault.repository.VaultItemRepository;
 import io.memoryvault.service.intelligence.ContextDetector;
@@ -101,9 +103,7 @@ public class VaultItemService {
 
     @Transactional
     public VaultItemResponse getById(Long userId, Long itemId) {
-        VaultItem item = vaultItemRepository.findById(itemId)
-                .filter(v -> v.getUser().getId().equals(userId))
-                .orElseThrow(() -> new ResourceNotFoundException("VaultItem", itemId));
+        VaultItem item = requireOwnedItem(userId, itemId);
 
         item.setViewCount((item.getViewCount() != null ? item.getViewCount() : 0) + 1);
         item.setLastViewedAt(java.time.Instant.now());
@@ -134,15 +134,38 @@ public class VaultItemService {
 
     @Transactional
     public VaultItemResponse markRediscovered(Long userId, Long itemId) {
-        VaultItem item = vaultItemRepository.findById(itemId)
-                .filter(v -> v.getUser().getId().equals(userId))
-                .orElseThrow(() -> new ResourceNotFoundException("VaultItem", itemId));
+        VaultItem item = requireOwnedItem(userId, itemId);
 
         item.setViewCount((item.getViewCount() != null ? item.getViewCount() : 0) + 1);
         item.setLastSurfacedAt(java.time.Instant.now());
         vaultItemRepository.save(item);
 
         return VaultItemResponse.from(item);
+    }
+
+    /**
+     * Loads a vault item and enforces per-user ownership, distinguishing the two failure
+     * cases the way callers actually need: an id nobody owns is {@code 404} (nothing to
+     * find), while an id that belongs to a different user is {@code 403} (found, but not
+     * yours) — deliberately not collapsed into a single 404, since callers here (item
+     * detail, rediscover) are expected to react differently to "doesn't exist" vs.
+     * "exists but isn't mine."
+     *
+     * @param userId the caller
+     * @param itemId the item being accessed
+     * @return the item, guaranteed owned by {@code userId}
+     * @throws ResourceNotFoundException if no item with this id exists at all
+     * @throws ApiException              with 403 FORBIDDEN if the item exists but belongs to another user
+     */
+    private VaultItem requireOwnedItem(Long userId, Long itemId) {
+        VaultItem item = vaultItemRepository.findById(itemId)
+                .orElseThrow(() -> new ResourceNotFoundException("VaultItem", itemId));
+
+        if (!item.getUser().getId().equals(userId)) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "FORBIDDEN", "You do not have access to this item");
+        }
+
+        return item;
     }
 
     @Transactional(readOnly = true)
