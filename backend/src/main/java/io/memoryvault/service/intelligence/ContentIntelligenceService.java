@@ -19,7 +19,8 @@ import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
@@ -38,7 +39,18 @@ public class ContentIntelligenceService {
     private static final Logger log = LoggerFactory.getLogger(ContentIntelligenceService.class);
     private static final long ENRICHMENT_DEADLINE_SECONDS = 20;
 
-    private final ExecutorService fetchExecutor = Executors.newCachedThreadPool();
+    /**
+     * Bounded on purpose. An unbounded {@code Executors.newCachedThreadPool()} here caused
+     * a real production bug: a burst of a few hundred concurrent page fetches (bulk import)
+     * spawned a native OS thread per fetch with no cap, and once thread creation started
+     * failing with {@code OutOfMemoryError: unable to create native thread}, that Error
+     * (not an Exception) escaped {@link #enrich}'s catch block silently — leaving affected
+     * items stuck in {@code PROCESSING} forever with no log line anywhere. A fixed-size pool
+     * bounds concurrent native threads to something the JVM/OS can sustain regardless of
+     * batch size; excess fetches queue instead of spawning unbounded threads.
+     */
+    private final ExecutorService fetchExecutor =
+            new ThreadPoolExecutor(20, 20, 60L, TimeUnit.SECONDS, new LinkedBlockingQueue<>());
 
     private final VaultItemRepository vaultItemRepository;
     private final TagRepository tagRepository;
@@ -86,18 +98,24 @@ public class ContentIntelligenceService {
      * @param vaultItemId id of the previously-saved, still-{@code PROCESSING} item
      */
     public void enrich(Long vaultItemId) {
-        String url = readUrl(vaultItemId);
-        if (url == null) {
-            log.warn("enrich() found no VaultItem for id={}", vaultItemId);
-            return;
-        }
-
         try {
+            String url = readUrl(vaultItemId);
+            if (url == null) {
+                log.warn("enrich() found no VaultItem for id={}", vaultItemId);
+                return;
+            }
+
             OpenGraphMetadata metadata = fetchWithDeadline(url);
             EnrichmentResult result = computeEnrichment(url, metadata);
             applyAndSave(vaultItemId, result, ItemStatus.PROCESSED);
-        } catch (Exception ex) {
-            log.warn("Failed to enrich vault item {}: {}", vaultItemId, ex.getMessage());
+        } catch (Throwable ex) {
+            // Deliberately Throwable, not Exception: a bounded-but-exhausted thread pool
+            // or other resource pressure can surface as an Error (e.g. OutOfMemoryError:
+            // unable to create native thread), and letting that escape uncaught is exactly
+            // what left items stuck in PROCESSING forever with no log line, in production,
+            // under bulk-import load. Every code path through here must reach a terminal
+            // status.
+            log.warn("Failed to enrich vault item {}: {}", vaultItemId, ex.toString());
             markFailed(vaultItemId);
         }
     }
