@@ -23,11 +23,12 @@ public class JwtService {
         this.accessExpiryMs = accessExpiryMs;
     }
 
-    public String generateAccessToken(Long userId, String email) {
+    public String generateAccessToken(Long userId, String email, String role) {
         Date now = new Date();
         return Jwts.builder()
                 .subject(String.valueOf(userId))
                 .claim("email", email)
+                .claim("role", role)
                 .issuedAt(now)
                 .expiration(new Date(now.getTime() + accessExpiryMs))
                 .signWith(key)
@@ -42,6 +43,15 @@ public class JwtService {
                 .getPayload()
                 .getSubject();
         return Long.valueOf(subject);
+    }
+
+    public String extractRole(String token) {
+        return Jwts.parser()
+                .verifyWith(key)
+                .build()
+                .parseSignedClaims(token)
+                .getPayload()
+                .get("role", String.class);
     }
 
     public boolean isValid(String token) {

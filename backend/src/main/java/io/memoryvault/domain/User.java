@@ -1,5 +1,6 @@
 package io.memoryvault.domain;
 
+import io.memoryvault.domain.enums.Role;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -30,6 +31,11 @@ public class User {
 
     @Column(name = "display_name", nullable = false, length = 120)
     private String displayName;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    @Builder.Default
+    private Role role = Role.USER;
 
     @Column(nullable = false, length = 60)
     @Builder.Default

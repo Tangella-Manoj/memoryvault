@@ -1,5 +1,6 @@
 package io.memoryvault.config;
 
+import io.memoryvault.security.SecurityUtil;
 import io.memoryvault.service.intelligence.BehaviorLearnerService;
 import org.springframework.boot.actuate.endpoint.annotation.Endpoint;
 import org.springframework.boot.actuate.endpoint.annotation.Selector;
@@ -18,8 +19,16 @@ public class BehaviorLearnerEndpoint {
         this.behaviorLearnerService = behaviorLearnerService;
     }
 
+    /**
+     * Manually triggers the nightly behavior-learning pass for a single user.
+     * Restricted to the user themselves or an ADMIN — see {@link SecurityUtil#requireSelfOrAdmin}.
+     *
+     * @param userId the user to recompute patterns for
+     * @return a summary of items refreshed, context counts, and the recomputed intelligence score
+     */
     @WriteOperation
     public Map<String, Object> runForUser(@Selector Long userId) {
+        SecurityUtil.requireSelfOrAdmin(userId);
         return behaviorLearnerService.runForUser(userId);
     }
 }
