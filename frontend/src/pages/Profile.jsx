@@ -3,6 +3,7 @@ import { Copy, Check, Mail } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '../lib/api'
 import YouTubeIntegration from '../components/profile/YouTubeIntegration'
+import NotificationSettings from '../components/profile/NotificationSettings'
 
 export default function Profile() {
   const [profile, setProfile] = useState(null)
@@ -56,6 +57,7 @@ export default function Profile() {
       </div>
 
       <YouTubeIntegration />
+      <NotificationSettings />
     </div>
   )
 }

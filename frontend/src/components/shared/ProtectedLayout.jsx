@@ -3,6 +3,7 @@ import { useAuthGuard } from '../../hooks/useAuthGuard'
 import Navbar from './Navbar'
 import FloatingSaveButton from '../vault/FloatingSaveButton'
 import SaveItemModal from '../vault/SaveItemModal'
+import NotificationPermissionModal from '../notifications/NotificationPermissionModal'
 
 export default function ProtectedLayout() {
   const accessToken = useAuthGuard()
@@ -19,6 +20,7 @@ export default function ProtectedLayout() {
       </main>
       <FloatingSaveButton />
       <SaveItemModal />
+      <NotificationPermissionModal />
     </div>
   )
 }
