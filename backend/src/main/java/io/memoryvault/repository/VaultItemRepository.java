@@ -20,6 +20,10 @@ public interface VaultItemRepository extends JpaRepository<VaultItem, Long>, Jpa
 
     long countByUserId(Long userId);
 
+    boolean existsByUserIdAndExternalId(Long userId, String externalId);
+
+    long countByUserIdAndSource(Long userId, io.memoryvault.domain.enums.ItemSource source);
+
     @Query("""
         select v from VaultItem v
         where v.user.id = :userId

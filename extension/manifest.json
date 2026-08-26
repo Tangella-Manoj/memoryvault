@@ -5,7 +5,15 @@
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAnCmhYzr4vYYwpa4Y9xEPogD8bB7dqdusfzovqRzLFCqLfQgzFyKqE968qh30A+j+W2indhjXvcRyvPYIEfsgWHnIM/7wtLNjsFJvhNrtuOtg3IJKoWRFgfavNp9M3bmD5UuPr3sgEtFaoUzYNyACyrWMKMvtNlYfBqu/4QMzj57sZ3bycTZDRNzM8Gci9CT01GZawLFDgj1/5xGwx7w0+PDYQbEuKpBWvKVhZNGVmUZjk9ZEuCSyoUBWYghOKrwGVZAV9D0hPMkp3Q7lzfL3jYenicjdMwiKHpMPszDTNXEjyh9ifoyYl3bx2t371PWAyiuqdZCRRWgdK/8xyjVpGwIDAQAB",
   "description": "Save anything to MemoryVault in one click, and let it resurface when you need it.",
   "permissions": ["storage", "activeTab"],
-  "host_permissions": ["http://localhost:8091/*"],
+  "host_permissions": [
+    "http://localhost:8091/*",
+    "https://www.instagram.com/*",
+    "https://twitter.com/*",
+    "https://x.com/*",
+    "https://www.google.com/*",
+    "https://www.bing.com/*",
+    "https://duckduckgo.com/*"
+  ],
   "background": {
     "service_worker": "background.js"
   },
@@ -17,6 +25,26 @@
       "matches": ["<all_urls>"],
       "js": ["content.js"],
       "css": ["content.css"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://www.instagram.com/*"],
+      "js": ["instagram.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://twitter.com/*", "https://x.com/*"],
+      "js": ["twitter.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://www.google.com/search*",
+        "https://www.bing.com/search*",
+        "https://duckduckgo.com/*"
+      ],
+      "js": ["search-overlay.js"],
+      "css": ["search-overlay.css"],
       "run_at": "document_idle"
     }
   ]

@@ -32,6 +32,7 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final long refreshExpiryMs;
+    private final String vaultEmailDomain;
     private final SecureRandom secureRandom = new SecureRandom();
 
     public AuthService(
@@ -39,13 +40,26 @@ public class AuthService {
             RefreshTokenRepository refreshTokenRepository,
             PasswordEncoder passwordEncoder,
             JwtService jwtService,
-            @Value("${app.jwt.refresh-expiry-ms}") long refreshExpiryMs
+            @Value("${app.jwt.refresh-expiry-ms}") long refreshExpiryMs,
+            @Value("${app.vault-email-domain:vault.stacknode.dev}") String vaultEmailDomain
     ) {
         this.userRepository = userRepository;
         this.refreshTokenRepository = refreshTokenRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
         this.refreshExpiryMs = refreshExpiryMs;
+        this.vaultEmailDomain = vaultEmailDomain;
+    }
+
+    /**
+     * Generates this user's personal inbound-email address (Upgrade 3): the first 8 hex
+     * characters of a random UUID, {@code @} the configured vault-email domain. Collisions
+     * are astronomically unlikely (32 bits of entropy over a small user base) and not
+     * retried here — acceptable for this feature, not for anything security-sensitive.
+     */
+    private String generateVaultEmail() {
+        String prefix = java.util.UUID.randomUUID().toString().replace("-", "").substring(0, 8);
+        return prefix + "@" + vaultEmailDomain;
     }
 
     @Transactional
@@ -59,6 +73,7 @@ public class AuthService {
                 .passwordHash(passwordEncoder.encode(request.password()))
                 .displayName(request.displayName())
                 .timezone("UTC")
+                .vaultEmail(generateVaultEmail())
                 .build();
         user = userRepository.save(user);
 

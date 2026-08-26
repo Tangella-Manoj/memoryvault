@@ -29,6 +29,9 @@ public class ContentTypeDetector {
         if (host.contains("twitter.com") || host.contains("x.com")) {
             return url.contains("/status/") ? ContentType.TWEET : ContentType.THREAD;
         }
+        if (host.contains("instagram.com")) {
+            return (url.contains("/reel/") || url.contains("/tv/")) ? ContentType.VIDEO : ContentType.IMAGE;
+        }
         if (host.contains("github.com") || host.contains("gitlab.com")) {
             return ContentType.REPO;
         }

@@ -26,6 +26,10 @@ public class User {
     @Column(nullable = false, unique = true)
     private String email;
 
+    /** Personal inbound-email address for forwarding links (Upgrade 3). Unique, nullable for pre-existing rows. */
+    @Column(name = "vault_email", unique = true)
+    private String vaultEmail;
+
     @Column(name = "password_hash", nullable = false)
     private String passwordHash;
 

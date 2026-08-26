@@ -66,7 +66,12 @@ public class VaultItemService {
 
     @Transactional
     public VaultItemResponse saveFromChromeQuick(Long userId, String url) {
-        return save(userId, new SaveVaultItemRequest(url, ItemSource.CHROME_EXTENSION));
+        return saveFromChromeQuick(userId, url, ItemSource.CHROME_EXTENSION);
+    }
+
+    @Transactional
+    public VaultItemResponse saveFromChromeQuick(Long userId, String url, ItemSource source) {
+        return save(userId, new SaveVaultItemRequest(url, source != null ? source : ItemSource.CHROME_EXTENSION));
     }
 
     @Transactional
@@ -119,6 +124,39 @@ public class VaultItemService {
 
         return contextDetector.rank(query, candidates, total).stream()
                 .map(this::toSearchResult)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Search formatted for the Chrome extension's contextual overlay (Upgrade 1): top 5
+     * results, flat snake_case shape, includes the raw context score so the caller can
+     * apply its own display threshold (the overlay only renders results above 0.4).
+     *
+     * @param userId the owning user
+     * @param query  free-text query, typically the user's live search-engine input
+     * @return up to 5 ranked results
+     */
+    @Transactional(readOnly = true)
+    public List<io.memoryvault.dto.chrome.ChromeSearchResult> chromeSearch(Long userId, String query) {
+        List<VaultItem> candidates = processedItemsFor(userId);
+        int total = candidates.size();
+
+        return contextDetector.rank(query, candidates, total).stream()
+                .limit(5)
+                .map(scored -> {
+                    VaultItem item = scored.item();
+                    long daysSince = java.time.temporal.ChronoUnit.DAYS.between(item.getSavedAt(), java.time.Instant.now());
+                    return new io.memoryvault.dto.chrome.ChromeSearchResult(
+                            item.getTitle(),
+                            item.getSummary(),
+                            item.getUrl(),
+                            item.getSource().name(),
+                            daysSince,
+                            item.getImportanceScore(),
+                            scored.reason(),
+                            scored.score()
+                    );
+                })
                 .collect(Collectors.toList());
     }
 

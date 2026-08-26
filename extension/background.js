@@ -72,7 +72,7 @@ async function callSaveEndpoint(entry, token) {
   const path = entry.type === 'SELECTION_SAVE' ? '/chrome/save/selection' : '/chrome/save/quick';
   const body = entry.type === 'SELECTION_SAVE'
     ? { url: entry.url, selectedText: entry.selectedText }
-    : { url: entry.url };
+    : { url: entry.url, source: entry.source };
 
   const res = await fetch(`${API_BASE}${path}`, {
     method: 'POST',
@@ -83,6 +83,26 @@ async function callSaveEndpoint(entry, token) {
     throw new Error(`Save failed with status ${res.status}`);
   }
   return res.json();
+}
+
+async function contextSearch(query, token) {
+  const res = await fetch(`${API_BASE}/chrome/search?q=${encodeURIComponent(query)}`, {
+    headers: { 'X-Chrome-Token': token },
+  });
+  if (!res.ok) {
+    throw new Error(`Search failed with status ${res.status}`);
+  }
+  const body = await res.json();
+  return body.data;
+}
+
+async function setBadge(text) {
+  try {
+    await chrome.action.setBadgeText({ text: text || '' });
+    await chrome.action.setBadgeBackgroundColor({ color: '#2d6a6a' });
+  } catch {
+    // Badge API can be unavailable in some contexts; never let this break a save.
+  }
 }
 
 async function saveItem(entry) {
@@ -134,6 +154,25 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         await flushOfflineQueue();
         const result = await saveItem(message);
         sendResponse(result);
+        break;
+      }
+      case 'SET_BADGE': {
+        await setBadge(message.text);
+        sendResponse({ ok: true });
+        break;
+      }
+      case 'CONTEXT_SEARCH': {
+        const token = await getStoredToken();
+        if (!token) {
+          sendResponse({ ok: false, error: 'not_logged_in' });
+          break;
+        }
+        try {
+          const data = await contextSearch(message.query, token);
+          sendResponse({ ok: true, data });
+        } catch (err) {
+          sendResponse({ ok: false, error: err.message });
+        }
         break;
       }
       default:

@@ -75,6 +75,10 @@ public class VaultItem {
     @Builder.Default
     private ItemSource source = ItemSource.WEB;
 
+    /** External platform id (e.g. YouTube video id) used for cross-source dedup. Null for manual saves. */
+    @Column(name = "external_id")
+    private String externalId;
+
     @Column(name = "saved_at", nullable = false, updatable = false)
     private Instant savedAt;
 
