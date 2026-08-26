@@ -41,6 +41,16 @@ public class BehaviorLearnerService {
     private final UserBehaviorPatternRepository userBehaviorPatternRepository;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
+    /**
+     * @param userRepository                repository for looking up all users on the nightly pass
+     * @param vaultItemRepository            repository for reading and refreshing a user's items
+     * @param resurfaceEventRepository       repository for the per-item engagement history used
+     *                                       to recompute importance scores
+     * @param userContextRepository          repository for the per-user context-weight rows this
+     *                                       pass upserts
+     * @param userBehaviorPatternRepository  repository for the audit-trail summary row written
+     *                                       after each run
+     */
     public BehaviorLearnerService(
             UserRepository userRepository,
             VaultItemRepository vaultItemRepository,
@@ -55,6 +65,11 @@ public class BehaviorLearnerService {
         this.userBehaviorPatternRepository = userBehaviorPatternRepository;
     }
 
+    /**
+     * Runs {@link #runForUser} for every user in the system. Scheduled nightly at 2am UTC;
+     * see {@code io.memoryvault.config.BehaviorLearnerEndpoint} for the on-demand,
+     * per-user actuator trigger used for testing and manual reruns.
+     */
     @Scheduled(cron = "0 0 2 * * *")
     public void runNightlyForAllUsers() {
         List<User> users = userRepository.findAll();
@@ -64,6 +79,14 @@ public class BehaviorLearnerService {
         }
     }
 
+    /**
+     * Recomputes one user's context weights and per-item importance scores from their
+     * current engagement history, and persists an audit-trail summary of the run.
+     *
+     * @param userId the user to recompute patterns for
+     * @return a summary map with keys {@code userId}, {@code itemsRefreshed},
+     *         {@code intelligenceScore}, {@code lifeContextCounts}, {@code emotionalContextCounts}
+     */
     @Transactional
     public Map<String, Object> runForUser(Long userId) {
         List<VaultItem> items = vaultItemRepository.findByUserIdOrderBySavedAtDesc(userId, org.springframework.data.domain.Pageable.unpaged()).getContent();

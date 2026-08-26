@@ -5,9 +5,21 @@ import org.springframework.stereotype.Component;
 
 import java.net.URI;
 
+/**
+ * Classifies a saved URL into a {@link ContentType} using host-name patterns (YouTube,
+ * GitHub, Twitter/X, common storefronts) first, then falling back to simple heuristics
+ * over the extracted page metadata (a lone image with no body text reads as {@code IMAGE},
+ * a long body reads as {@code ARTICLE}) when the host doesn't identify the type.
+ */
 @Component
 public class ContentTypeDetector {
 
+    /**
+     * @param url      the saved URL, used for host-based pattern matching
+     * @param metadata previously extracted page metadata, used when the host alone
+     *                 isn't conclusive
+     * @return the best-guess {@link ContentType}; {@code OTHER} when nothing matches
+     */
     public ContentType detect(String url, OpenGraphMetadata metadata) {
         String host = hostOf(url);
 

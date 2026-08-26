@@ -6,7 +6,6 @@ import io.memoryvault.domain.enums.ResurfaceAction;
 import io.memoryvault.repository.ResurfaceEventRepository;
 import org.springframework.stereotype.Service;
 
-import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Comparator;
@@ -29,11 +28,29 @@ public class ResurfaceEngine {
     private final ContextDetector contextDetector;
     private final ResurfaceEventRepository resurfaceEventRepository;
 
+    /**
+     * @param contextDetector          supplies the base context-match score each candidate
+     *                                 is rescored from
+     * @param resurfaceEventRepository source of each item's past resurface-event history,
+     *                                 used to compute its engagement score
+     */
     public ResurfaceEngine(ContextDetector contextDetector, ResurfaceEventRepository resurfaceEventRepository) {
         this.contextDetector = contextDetector;
         this.resurfaceEventRepository = resurfaceEventRepository;
     }
 
+    /**
+     * Ranks candidate vault items for resurfacing: starts from {@link ContextDetector}'s
+     * context-match score, then applies recency decay, engagement history, and the
+     * forgotten-item bonus described in this class's Javadoc.
+     *
+     * @param contextQuery        free-text context to match against (may be empty)
+     * @param candidates          vault items eligible to resurface
+     * @param totalUserItemCount  the user's total item count, forwarded to
+     *                            {@link ContextDetector#rank} to decide cold-start
+     * @param limit               maximum number of results to return
+     * @return the top {@code limit} candidates sorted by descending resurface score
+     */
     public List<ScoredVaultItem> topResurfaceCandidates(String contextQuery, List<VaultItem> candidates, int totalUserItemCount, int limit) {
         List<ScoredVaultItem> contextRanked = contextDetector.rank(contextQuery, candidates, totalUserItemCount);
 
@@ -78,9 +95,5 @@ public class ResurfaceEngine {
 
     private long daysSince(Instant instant) {
         return Duration.between(instant, Instant.now()).toDays();
-    }
-
-    public BigDecimal toScoreDecimal(double score) {
-        return BigDecimal.valueOf(score).setScale(4, java.math.RoundingMode.HALF_UP);
     }
 }

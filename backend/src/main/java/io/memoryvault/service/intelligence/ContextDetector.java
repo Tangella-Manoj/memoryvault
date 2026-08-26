@@ -22,14 +22,32 @@ import java.util.stream.Collectors;
 @Service
 public class ContextDetector {
 
+    /** Below this many total items for a user, ranking falls back to the cold-start path. */
     public static final int COLD_START_THRESHOLD = 20;
 
     private final ContextKeywordDetector contextKeywordDetector;
 
+    /**
+     * @param contextKeywordDetector used to classify both the query and each candidate
+     *                               item's emotional/life context
+     */
     public ContextDetector(ContextKeywordDetector contextKeywordDetector) {
         this.contextKeywordDetector = contextKeywordDetector;
     }
 
+    /**
+     * Ranks candidate vault items against a free-text query. Below
+     * {@link #COLD_START_THRESHOLD} total items for the user, falls back to a
+     * recency+importance score instead of context/text similarity, since similarity
+     * signal is unreliable at that volume; otherwise combines text-token Jaccard
+     * similarity (40%) with emotional-context (30%) and life-context (30%) matches.
+     *
+     * @param query               free-text search query (may be empty, not null)
+     * @param candidates          vault items to rank
+     * @param totalUserItemCount  the user's total item count, used to decide cold-start
+     * @return candidates sorted by descending score, each paired with its score and a
+     *         short human-readable reason
+     */
     public List<ScoredVaultItem> rank(String query, List<VaultItem> candidates, int totalUserItemCount) {
         boolean coldStart = totalUserItemCount < COLD_START_THRESHOLD;
 

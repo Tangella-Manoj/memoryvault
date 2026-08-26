@@ -16,6 +16,13 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
+/**
+ * Thin wrapper around the Anthropic Java SDK for the one thing the intelligence pipeline
+ * needs from Claude: a 3-sentence summary plus a short tag list for a saved page. Retries
+ * transient failures (rate limits, network errors) with exponential backoff; when no API
+ * key is configured or every retry is exhausted, callers get {@link Optional#empty()} and
+ * are expected to fall back to a non-AI summary (see {@code ContentIntelligenceService}).
+ */
 @Component
 public class ClaudeIntelligenceClient {
 
@@ -27,6 +34,11 @@ public class ClaudeIntelligenceClient {
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final boolean enabled;
 
+    /**
+     * @param apiKey the Anthropic API key from {@code app.anthropic.api-key}; when blank
+     *               the client is disabled and {@link #summarizeAndTag} always returns empty
+     * @param model  the Claude model id to call, from {@code app.anthropic.model}
+     */
     public ClaudeIntelligenceClient(
             @Value("${app.anthropic.api-key}") String apiKey,
             @Value("${app.anthropic.model}") String model
@@ -38,6 +50,17 @@ public class ClaudeIntelligenceClient {
                 : null;
     }
 
+    /**
+     * Asks Claude for a 3-sentence summary and a handful of tags for a saved page, retrying
+     * up to {@value #MAX_ATTEMPTS} times with exponential backoff on rate limits or transient
+     * errors.
+     *
+     * @param title       the page's title, if known (may be null)
+     * @param description the page's meta description, if known (may be null)
+     * @param bodyText    extracted body text to ground the summary in (truncated internally)
+     * @return the parsed summary and tags, or {@link Optional#empty()} if the client is
+     *         disabled, every attempt failed, or the response couldn't be parsed as JSON
+     */
     public Optional<ClaudeSummaryResult> summarizeAndTag(String title, String description, String bodyText) {
         if (!enabled) {
             return Optional.empty();

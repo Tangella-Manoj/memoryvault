@@ -7,6 +7,13 @@ import org.springframework.stereotype.Component;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
+/**
+ * Deterministic keyword-based classifier for {@link EmotionalContext} and {@link LifeContext}.
+ * Scores a text against a fixed keyword dictionary per context value and picks the
+ * highest-scoring match; ties keep the first-declared value, and text matching nothing
+ * (or blank/null input) falls back to {@code NEUTRAL}/{@code OTHER}. Used both when a
+ * newly-saved item is enriched and when classifying a free-text search query.
+ */
 @Component
 public class ContextKeywordDetector {
 
@@ -31,10 +38,20 @@ public class ContextKeywordDetector {
         LIFE_KEYWORDS.put(LifeContext.HOME, new String[]{"home", "recipe", "kitchen", "furniture", "decor", "garden"});
     }
 
+    /**
+     * @param text free text to classify (page content, or a search query)
+     * @return the emotional context whose keywords best match {@code text}, or
+     *         {@code NEUTRAL} when nothing matches or {@code text} is blank/null
+     */
     public EmotionalContext detectEmotional(String text) {
         return detect(text, EMOTIONAL_KEYWORDS, EmotionalContext.NEUTRAL);
     }
 
+    /**
+     * @param text free text to classify (page content, or a search query)
+     * @return the life context whose keywords best match {@code text}, or {@code OTHER}
+     *         when nothing matches or {@code text} is blank/null
+     */
     public LifeContext detectLife(String text) {
         return detect(text, LIFE_KEYWORDS, LifeContext.OTHER);
     }
