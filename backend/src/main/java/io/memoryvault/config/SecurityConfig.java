@@ -1,5 +1,6 @@
 package io.memoryvault.config;
 
+import io.memoryvault.security.ChromeSessionAuthenticationFilter;
 import io.memoryvault.security.JwtAuthenticationFilter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -21,9 +22,14 @@ import java.util.List;
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final ChromeSessionAuthenticationFilter chromeSessionAuthenticationFilter;
 
-    public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter) {
+    public SecurityConfig(
+            JwtAuthenticationFilter jwtAuthenticationFilter,
+            ChromeSessionAuthenticationFilter chromeSessionAuthenticationFilter
+    ) {
         this.jwtAuthenticationFilter = jwtAuthenticationFilter;
+        this.chromeSessionAuthenticationFilter = chromeSessionAuthenticationFilter;
     }
 
     @Bean
@@ -42,7 +48,8 @@ public class SecurityConfig {
                         .requestMatchers("/actuator/health").permitAll()
                         .anyRequest().authenticated()
                 )
-                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
+                .addFilterBefore(chromeSessionAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }

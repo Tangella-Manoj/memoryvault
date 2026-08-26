@@ -46,4 +46,10 @@ public class VaultItemController {
         Long userId = SecurityUtil.currentUserId();
         return ApiResponse.success(vaultItemService.resurfaceFeed(userId, limit), "Resurfacing feed");
     }
+
+    @GetMapping("/forgotten")
+    public ApiResponse<List<VaultItemResponse>> forgotten() {
+        Long userId = SecurityUtil.currentUserId();
+        return ApiResponse.success(vaultItemService.forgottenGems(userId), "Forgotten gems");
+    }
 }

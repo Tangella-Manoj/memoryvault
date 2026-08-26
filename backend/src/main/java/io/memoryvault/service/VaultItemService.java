@@ -62,6 +62,29 @@ public class VaultItemService {
         return VaultItemResponse.from(item);
     }
 
+    @Transactional
+    public VaultItemResponse saveFromChromeQuick(Long userId, String url) {
+        return save(userId, new SaveVaultItemRequest(url, ItemSource.CHROME_EXTENSION));
+    }
+
+    @Transactional
+    public VaultItemResponse saveFromChromeSelection(Long userId, String url, String selectedText) {
+        User user = userRepository.getReferenceById(userId);
+
+        VaultItem item = VaultItem.builder()
+                .user(user)
+                .url(url)
+                .summary(selectedText)
+                .status(ItemStatus.PROCESSING)
+                .source(ItemSource.CHROME_EXTENSION)
+                .build();
+
+        item = vaultItemRepository.save(item);
+        eventPublisher.publishEvent(new VaultItemSavedEvent(item.getId()));
+
+        return VaultItemResponse.from(item);
+    }
+
     @Transactional(readOnly = true)
     public VaultItemResponse getById(Long userId, Long itemId) {
         VaultItem item = vaultItemRepository.findById(itemId)
@@ -87,6 +110,14 @@ public class VaultItemService {
 
         return resurfaceEngine.topResurfaceCandidates("", candidates, total, limit).stream()
                 .map(this::toSearchResult)
+                .collect(Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
+    public List<VaultItemResponse> forgottenGems(Long userId) {
+        java.time.Instant cutoff = java.time.Instant.now().minus(30, java.time.temporal.ChronoUnit.DAYS);
+        return vaultItemRepository.findForgottenCandidates(userId, cutoff).stream()
+                .map(VaultItemResponse::from)
                 .collect(Collectors.toList());
     }
 
