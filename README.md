@@ -92,6 +92,45 @@ Then update both `extension/manifest.json`'s `"key"` field and the id in
 `SecurityConfig.corsConfigurationSource` with the printed values, and reload the
 unpacked extension.
 
+## Ingestion channels
+
+Beyond manual save and the floating "+" button, items reach a user's vault through five additional channels:
+
+| Channel | How it works |
+|---|---|
+| **Chrome auto-capture** | `extension/instagram.js` and `extension/twitter.js` watch Instagram's saved-posts grid and Twitter/X bookmarks (MutationObserver, since both are infinite-scroll/virtualized) and POST new items to `/api/chrome/save/quick` automatically — no manual click needed |
+| **Contextual search overlay** | `extension/search-overlay.js` runs on google.com/bing.com/duckduckgo.com, debounces the search box (600ms), and calls `GET /api/chrome/search` to surface the caller's own top-3 relevant saved items (context score > 0.4) above the search results |
+| **PWA share target** | Installed as a PWA on Android, MemoryVault registers as a native share target — sharing a link from any app (YouTube, a browser, WhatsApp) opens `/share-target`, which POSTs to `/api/vault/share-target` |
+| **Personal email inbox** | Every user gets a generated `{8-hex-chars}@vault.stacknode.dev` address (see `GET /api/users/me`) — forwarding any email to it extracts and saves every real URL in the body (tracking pixels, unsubscribe links, and short/redirect URLs are filtered out) |
+| **YouTube sync** | Connect a Google account (`GET /api/integrations/youtube/connect`) to auto-import liked videos and Watch Later every 6 hours, deduplicated by video id |
+
+### Setting up YouTube OAuth
+
+1. In [Google Cloud Console](https://console.cloud.google.com/apis/credentials), create an **OAuth 2.0 Client ID** of type "Web application"
+2. Add `http://localhost:8091/api/integrations/youtube/callback` as an authorized redirect URI (or your deployed backend's equivalent)
+3. Enable the **YouTube Data API v3** for the project
+4. Put the client id/secret in `.env`: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`
+5. Generate `TOKEN_ENCRYPTION_KEY` (AES-256, used to encrypt stored OAuth tokens at rest): `openssl rand -hex 32`
+
+Without these set, `GET /api/integrations/youtube/connect` returns `503` rather than crashing — the rest of the app works fine unconfigured.
+
+### Configuring the email inbox
+
+Two options, either works:
+
+- **Self-hosted (default, zero setup)** — `SMTP_RECEIVER_ENABLED=true` starts an embedded SMTP server (`SmtpReceiverConfig`, port `SMTP_RECEIVER_PORT`, default `2525`) that accepts mail directly. Point real MX records at this host to receive real internet email, or just `swaks`/`smtplib` to `localhost:2525` for local testing.
+- **Mailgun** — set `MAILGUN_WEBHOOK_SIGNING_KEY` and route Mailgun's inbound webhook to `POST /api/email/inbound`. Every request's HMAC-SHA256 signature is verified against this key before any email is processed.
+
+`VAULT_EMAIL_DOMAIN` controls the domain half of each generated `{uuid}@domain` address.
+
+### Enabling push notifications
+
+1. Generate a VAPID keypair once: `npx web-push generate-vapid-keys`
+2. Put the values in `.env`: `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` (a `mailto:` contact), and `VITE_VAPID_PUBLIC_KEY` in `frontend/.env` (same public key — safe to expose client-side)
+3. Without these set, `PushNotificationSender` silently no-ops (`configured=false`) rather than failing startup
+
+`EngagementPatternService` learns each user's optimal notification hour from their real resurfacing engagement (`resurface_events` where the action is `VIEWED`/`SAVED_AGAIN`), recency-weighted, recalculated every 48 hours — defaulting to 8am UTC until a user has 10+ qualifying events. `NotificationSchedulerService` runs hourly and sends one push ("3 things you saved and forgot") to every user whose optimal hour matches the current UTC hour. The frontend shows a custom in-app modal explaining this before ever requesting the browser's native permission prompt — nothing is requested silently.
+
 ## API reference
 
 Every response uses this envelope:
@@ -129,6 +168,24 @@ Every response uses this envelope:
 | POST | `/api/chrome/save/quick` | `{ url }`, auth via `X-Chrome-Token` |
 | POST | `/api/chrome/save/selection` | `{ url, selectedText }` |
 
+### Upgrades (Instagram/Twitter capture, PWA share, email, YouTube, notifications)
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/api/chrome/search?q=` | Contextual search overlay results (extension) |
+| POST | `/api/vault/share-target` | Form-encoded `{ url?, text?, title? }` — PWA Web Share Target |
+| GET | `/api/users/me` | Caller's profile, including generated `vaultEmail` |
+| POST | `/api/email/inbound` | Mailgun inbound webhook (HMAC-signed) |
+| GET | `/api/integrations/youtube/connect` | Returns a Google OAuth authorization URL |
+| GET | `/api/integrations/youtube/callback` | OAuth redirect target — not called directly |
+| POST | `/api/integrations/youtube/sync` | Manual sync trigger |
+| GET | `/api/integrations/youtube/status` | Connection + last-sync status |
+| POST | `/api/integrations/youtube/toggle?enabled=` | Enable/disable the 6-hourly auto-sync |
+| GET | `/api/notifications/preferences` | Caller's notification settings |
+| POST | `/api/notifications/subscribe` | `{ subscription }` — registers a browser push subscription |
+| POST | `/api/notifications/unsubscribe` | Clears the caller's push subscription |
+| POST | `/api/notifications/recalculate` | Forces optimal-hour recalculation now |
+| POST | `/api/notifications/test-trigger?hour=` | Admin-only — manually fires the hourly scheduler |
+
 Example:
 ```bash
 curl -X POST http://localhost:8091/api/vault/save \
@@ -153,7 +210,7 @@ docker compose up -d && cd backend && ./mvnw spring-boot:run -Dspring-boot.run.p
 npx newman run memoryvault.postman_collection.json
 ```
 
-Exercises all 19 endpoints against the live server and asserts both status codes and the `ApiResponse` envelope shape. Auth requests populate `accessToken`/`refreshToken`/`userId` as collection variables that later requests depend on — run the whole collection, not individual folders out of order.
+Exercises all 27 endpoints (19 original + 8 covering the 5 upgrades) against the live server and asserts both status codes and the `ApiResponse` envelope shape. Auth requests populate `accessToken`/`refreshToken`/`userId` as collection variables that later requests depend on — run the whole collection, not individual folders out of order.
 
 ## How the intelligence score works
 
@@ -185,3 +242,8 @@ Separately, **resurfacing** uses its own formula (not the importance score direc
 - **Digest generation and BehaviorLearner are single-node cron (`@Scheduled`)** — running more than one backend instance would double-run both jobs; there's no distributed lock.
 - **The Chrome extension's `host_permissions` and CORS origin are hardcoded to `localhost:8091`** — deploying the backend elsewhere requires updating both (documented above) and repacking the extension.
 - **No image optimization or CDN** for saved item thumbnails — `ogImageUrl` is stored and served as-is from the source site.
+- **Instagram/Twitter content scripts are untested against real logged-in accounts** — this sandbox has no real Instagram/Twitter credentials, so they were verified via request interception against the real origins with synthetic DOM content instead.
+- **PWA share target is unverified on a physical Android device** — no phone or HTTPS tunnel available here; the full flow (SW interception → `/share-target` → save) was verified in a real desktop browser instead.
+- **The self-hosted SMTP receiver has no TLS/STARTTLS and no SPF/DKIM verification** — fine for local receipt-and-parse testing, not production-ready for accepting real internet mail without a proper MTA in front of it.
+- **YouTube sync has never run against a real Google account** — no OAuth credentials exist in this environment; authorization-URL construction, state validation, and the dedup logic are verified, but the actual token exchange and Data API calls are not.
+- **Push notification delivery timing depends on FCM**, not this app — a user's optimal-hour push can arrive slightly after the top of the hour if FCM is slow to deliver to an offline/backgrounded browser.
