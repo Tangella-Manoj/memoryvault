@@ -10,7 +10,7 @@ import java.util.List;
 /**
  * Plain holder for everything the intelligence pipeline computes for one URL,
  * kept independent of any managed JPA entity so the slow network work (Jsoup fetch,
- * Claude call) never happens while a {@code VaultItem} is loaded in a persistence context —
+ * AI service call) never happens while a {@code VaultItem} is loaded in a persistence context —
  * that gap is what previously let concurrent view-count updates get clobbered by a stale save.
  */
 public record EnrichmentResult(
@@ -21,6 +21,7 @@ public record EnrichmentResult(
         EmotionalContext emotionalContext,
         LifeContext lifeContext,
         BigDecimal importanceScore,
-        List<String> tagNames
+        List<String> tagNames,
+        String embeddingJson
 ) {
 }

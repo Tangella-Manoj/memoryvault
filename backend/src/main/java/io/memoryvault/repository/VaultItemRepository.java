@@ -18,6 +18,8 @@ public interface VaultItemRepository extends JpaRepository<VaultItem, Long>, Jpa
 
     List<VaultItem> findByUserIdAndStatus(Long userId, ItemStatus status);
 
+    List<VaultItem> findByStatusAndEmbeddingIsNull(ItemStatus status);
+
     long countByUserId(Long userId);
 
     boolean existsByUserIdAndExternalId(Long userId, String externalId);

@@ -17,6 +17,7 @@ CREATE TABLE vault_items (
     url VARCHAR(2048) NOT NULL,
     title VARCHAR(500),
     summary TEXT,
+    embedding TEXT NULL,
     og_image_url VARCHAR(2048),
     content_type ENUM('ARTICLE','VIDEO','TWEET','THREAD','PRODUCT','REPO','DOCUMENT','IMAGE','OTHER')
         NOT NULL DEFAULT 'OTHER',

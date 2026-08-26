@@ -8,7 +8,7 @@ import org.springframework.stereotype.Component;
  * Fetches a saved URL and extracts Open Graph metadata (title, description, image) with
  * plain-HTML fallbacks (page {@code <title>}, the standard {@code meta[name=description]})
  * for pages that don't publish OG tags, plus a size-capped plain-text body used downstream
- * for content-type detection and the Claude summary prompt.
+ * for content-type detection and the AI summary prompt.
  */
 @Component
 public class OpenGraphExtractor {

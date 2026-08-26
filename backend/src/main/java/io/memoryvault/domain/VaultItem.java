@@ -43,6 +43,10 @@ public class VaultItem {
     @Column(columnDefinition = "TEXT")
     private String summary;
 
+    /** JSON array of floats — the semantic embedding of title+summary+tags. Null until enriched. */
+    @Column(columnDefinition = "TEXT")
+    private String embedding;
+
     @Column(name = "og_image_url", length = 2048)
     private String ogImageUrl;
 

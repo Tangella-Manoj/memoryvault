@@ -1,5 +1,6 @@
 package io.memoryvault.service.intelligence;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.memoryvault.domain.Tag;
 import io.memoryvault.domain.VaultItem;
 import io.memoryvault.domain.enums.ContentType;
@@ -26,12 +27,12 @@ import java.util.concurrent.TimeoutException;
 
 /**
  * Enriches a freshly-saved {@link VaultItem} with metadata, an AI summary, tags, and
- * detected context — running the slow I/O (page fetch, Claude call) entirely outside
+ * detected context — running the slow I/O (page fetch, AI service call) entirely outside
  * any JPA persistence context, then applying the result to a freshly-reloaded entity in
  * one short transaction. This ordering matters: earlier the same class held a managed
  * entity across the whole multi-second network round trip and blind-saved it at the end,
  * which silently clobbered concurrent updates (e.g. view-count increments) that landed
- * on the row while the fetch/Claude call was still in flight.
+ * on the row while the fetch/AI call was still in flight.
  */
 @Service
 public class ContentIntelligenceService {
@@ -57,7 +58,8 @@ public class ContentIntelligenceService {
     private final OpenGraphExtractor openGraphExtractor;
     private final ContentTypeDetector contentTypeDetector;
     private final ContextKeywordDetector contextKeywordDetector;
-    private final ClaudeIntelligenceClient claudeClient;
+    private final AIService aiService;
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     public ContentIntelligenceService(
             VaultItemRepository vaultItemRepository,
@@ -65,14 +67,14 @@ public class ContentIntelligenceService {
             OpenGraphExtractor openGraphExtractor,
             ContentTypeDetector contentTypeDetector,
             ContextKeywordDetector contextKeywordDetector,
-            ClaudeIntelligenceClient claudeClient
+            AIService aiService
     ) {
         this.vaultItemRepository = vaultItemRepository;
         this.tagRepository = tagRepository;
         this.openGraphExtractor = openGraphExtractor;
         this.contentTypeDetector = contentTypeDetector;
         this.contextKeywordDetector = contextKeywordDetector;
-        this.claudeClient = claudeClient;
+        this.aiService = aiService;
     }
 
     /**
@@ -90,8 +92,8 @@ public class ContentIntelligenceService {
 
     /**
      * Enriches one vault item end to end: fetches the page, detects content type and
-     * context, asks Claude for a summary and tags (falling back to the page's own
-     * meta description if Claude is unavailable), computes an initial importance
+     * context, asks the AI service for a summary and tags (falling back to the page's own
+     * meta description if the AI service is unavailable), computes an initial importance
      * score, and persists the result. Never throws — failures are recorded as a
      * {@code FAILED} status on the item itself.
      *
@@ -143,9 +145,10 @@ public class ContentIntelligenceService {
     }
 
     /**
-     * Pure computation (no entity access): detects content type/context, calls Claude
-     * for a summary and tags, and derives an initial importance score. Safe to run
-     * outside any transaction since it never touches a managed {@link VaultItem}.
+     * Pure computation (no entity access): detects content type/context, calls the
+     * configured {@link AIService} for a summary, tags, and an embedding vector, and
+     * derives an initial importance score. Safe to run outside any transaction since it
+     * never touches a managed {@link VaultItem}.
      *
      * @param url      the item's URL, used for content-type detection
      * @param metadata page metadata already extracted via {@link OpenGraphExtractor}
@@ -161,17 +164,25 @@ public class ContentIntelligenceService {
 
         String summary = null;
         List<String> tagNames = List.of();
-        Optional<ClaudeSummaryResult> claudeResult = claudeClient.summarizeAndTag(
+        Optional<AISummaryResult> aiResult = aiService.generateSummaryAndTags(
                 metadata.title(), metadata.description(), metadata.bodyText());
 
-        if (claudeResult.isPresent()) {
-            summary = claudeResult.get().summary();
-            tagNames = claudeResult.get().tags();
+        if (aiResult.isPresent()) {
+            summary = aiResult.get().summary();
+            tagNames = aiResult.get().tags();
         } else if (metadata.description() != null) {
             summary = truncate(metadata.description(), 500);
         }
 
         BigDecimal importanceScore = computeInitialImportance(metadata.imageUrl() != null, summary != null, tagNames.size());
+
+        String embeddingText = String.join(" ",
+                nullToEmpty(metadata.title() != null ? truncate(metadata.title(), 500) : null),
+                nullToEmpty(summary),
+                String.join(" ", tagNames));
+        String embeddingJson = aiService.generateEmbedding(embeddingText)
+                .map(this::toJson)
+                .orElse(null);
 
         return new EnrichmentResult(
                 metadata.title() != null ? truncate(metadata.title(), 500) : null,
@@ -181,8 +192,18 @@ public class ContentIntelligenceService {
                 emotionalContext,
                 lifeContext,
                 importanceScore,
-                tagNames
+                tagNames,
+                embeddingJson
         );
+    }
+
+    private String toJson(List<Float> vector) {
+        try {
+            return objectMapper.writeValueAsString(vector);
+        } catch (Exception ex) {
+            log.warn("Failed to serialize embedding vector: {}", ex.getMessage());
+            return null;
+        }
     }
 
     /**
@@ -211,6 +232,9 @@ public class ContentIntelligenceService {
         item.setLifeContext(result.lifeContext());
         if (result.summary() != null) {
             item.setSummary(result.summary());
+        }
+        if (result.embeddingJson() != null) {
+            item.setEmbedding(result.embeddingJson());
         }
         item.setImportanceScore(result.importanceScore());
 

@@ -122,12 +122,16 @@ public class VaultItemService {
         return VaultItemResponse.from(item);
     }
 
+    /** Cosine-similarity floor below which a semantic search result is considered unrelated. */
+    private static final double SEMANTIC_SIMILARITY_THRESHOLD = 0.30;
+
     @Transactional(readOnly = true)
     public List<SearchResultItem> search(Long userId, String query) {
         List<VaultItem> candidates = processedItemsFor(userId);
         int total = candidates.size();
 
         return contextDetector.rank(query, candidates, total).stream()
+                .filter(scored -> scored.score() > SEMANTIC_SIMILARITY_THRESHOLD)
                 .map(this::toSearchResult)
                 .collect(Collectors.toList());
     }

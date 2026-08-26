@@ -51,6 +51,7 @@
           <span class="mv-overlay-days">${r.days_since_saved}d ago</span>
         </div>
         <div class="mv-overlay-title">${escapeHtml(r.title || r.url)}</div>
+        <div class="mv-overlay-match">${Math.round(r.context_score * 100)}% related to your search</div>
         ${r.summary ? `<div class="mv-overlay-summary">${escapeHtml(truncate(r.summary, 100))}</div>` : ''}
       `;
       itemsContainer.appendChild(item);

@@ -28,9 +28,10 @@ All 6 ingestion channels feed the same enrichment pipeline and land in the same 
                     ┌──────────────────────────────────────┐
                     │           Spring Boot REST API         │
                     │  ┌────────────────────────────────┐  │      ┌─────────────┐
-                    │  │ @Async enrichment pipeline       │──┼────▶│ Claude API   │
-                    │  │ (summarize, tag, context-classify)│  │      │ (optional)   │
-                    │  └────────────────────────────────┘  │      └─────────────┘
+                    │  │ @Async enrichment pipeline       │──┼────▶│ AIService    │
+                    │  │ (summarize, tag, embed)          │  │      │ Ollama (dev) │
+                    │  └────────────────────────────────┘  │      │ Groq+HF(prod)│
+                    │                                       │      └─────────────┘
                     │  ┌────────────────────────────────┐  │
                     │  │ ResurfaceEngine + EngagementPattern│  │      ┌─────────────┐
                     │  │ Service → NotificationScheduler   │──┼────▶│ Web Push /   │
@@ -51,7 +52,20 @@ All 6 ingestion channels feed the same enrichment pipeline and land in the same 
                     └──────────────────────────┘
 ```
 
-**Environment isolation**: Java 17 + Maven via SDKMAN (`backend/.sdkmanrc`) with Maven Wrapper as the real guarantee (`./mvnw` works with no SDKMAN installed). Node 20 via nvm (`frontend/.nvmrc`). MySQL runs only in Docker locally — no system MySQL is ever touched. Production swaps MySQL for a Render-managed PostgreSQL instance via the `prod` Spring profile; nothing else in the app changes (see [Deploying to production](#deploying-to-production)).
+**Environment isolation**: Java 17 + Maven via SDKMAN (`backend/.sdkmanrc`) with Maven Wrapper as the real guarantee (`./mvnw` works with no SDKMAN installed). Node 20 via nvm (`frontend/.nvmrc`). MySQL and Ollama run only in Docker locally — no system MySQL is ever touched. Production swaps MySQL for a Render-managed PostgreSQL instance via the `prod` Spring profile; nothing else in the app changes (see [Deploying to production](#deploying-to-production)).
+
+## AI stack (Upgrade 8): zero paid API keys
+
+MemoryVault used to call the Claude API for summaries/tags. It no longer does — **no part of this app requires a paid API key of any kind.** All AI generation and embeddings run on a free, open-source stack, selected by Spring profile behind a single `AIService` interface (`backend/.../service/intelligence/AIService.java`) that the rest of the codebase depends on and never changes:
+
+| Profile | Generation | Embeddings | Cost |
+|---|---|---|---|
+| `dev` (`OllamaAIService`) | `llama3.1:8b` via a local Ollama container (docker-compose service `ollama`, port 11434) | `nomic-embed-text` via the same container | $0 — runs entirely on your machine, no key |
+| `prod` (`GroqAIService`) | `llama-3.1-8b-instant` via Groq's OpenAI-compatible API (`api.groq.com/openai/v1`) | HuggingFace's hosted inference API (`sentence-transformers/all-MiniLM-L6-v2`) | Free tier on both |
+
+`docker compose up -d` pulls `ollama/ollama` and starts it alongside MySQL; an `ApplicationRunner` (`OllamaModelPullRunner`) pulls both models automatically on backend startup (best-effort — logs and continues if Ollama is still warming up). A one-time `EmbeddingBackfillRunner` also runs on startup, backfilling any pre-existing `PROCESSED` item that's missing an embedding, in batches of 10 with a 500ms pause between batches so it never floods Ollama.
+
+Every saved item's title + summary + tags gets embedded and stored as a JSON float array in `vault_items.embedding` — that's what powers the semantic search described below.
 
 ## Prerequisites
 
@@ -76,7 +90,7 @@ cd backend && ./mvnw spring-boot:run -Dspring-boot.run.profiles=dev &    # 5
 cd ../frontend && nvm use && npm install && npm run dev &                # 6
 ```
 
-Frontend at `http://localhost:5173`, backend at `http://localhost:8091`. `ANTHROPIC_API_KEY` is left as a placeholder — the app works without it (enrichment falls back to the page's own meta description instead of a Claude summary).
+Frontend at `http://localhost:5173`, backend at `http://localhost:8091`. `docker compose up -d` also starts a local Ollama container, and the backend pulls `llama3.1:8b`/`nomic-embed-text` into it automatically on first startup (no key needed) — enrichment falls back to the page's own meta description and a null embedding if Ollama isn't reachable yet.
 
 ## Load the Chrome extension
 
@@ -234,7 +248,8 @@ Everything needed to deploy is committed; actually running it requires accounts 
 | Variable | Description | Where to get it |
 |---|---|---|
 | `JWT_SECRET` | Signs access/refresh tokens — must be ≥256 bits | `openssl rand -hex 32` |
-| `ANTHROPIC_API_KEY` | Enables Claude-generated summaries/tags (optional — enrichment falls back to the page's own meta description without it) | [console.anthropic.com](https://console.anthropic.com) |
+| `GROQ_API_KEY` | Enables AI-generated summaries/tags in prod (optional — enrichment falls back to the page's own meta description without it); Groq's API is free-tier | [console.groq.com/keys](https://console.groq.com/keys) |
+| `HUGGINGFACE_API_KEY` | Enables embeddings (semantic search) in prod (optional — falls back to keyword search without it); HuggingFace's inference API has a free tier | [huggingface.co/settings/tokens](https://huggingface.co/settings/tokens) |
 | `MAILGUN_WEBHOOK_SIGNING_KEY` | Verifies the HMAC signature on inbound email webhooks | Mailgun dashboard → Webhooks (only needed if using Mailgun instead of leaving the self-hosted SMTP receiver, which is disabled in prod — see the note in `render.yaml`) |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | YouTube OAuth sync | Google Cloud Console (see "Setting up YouTube OAuth" above) |
 | `TOKEN_ENCRYPTION_KEY` | AES-256 key encrypting stored OAuth tokens at rest | `openssl rand -hex 32` |
@@ -271,7 +286,7 @@ Once both domains resolve, the same walkthrough this project runs locally applie
 cd backend && ./mvnw test
 ```
 
-Runs against an in-memory H2 database with a fixed test-only JWT secret (`application-test.yml`) — no environment setup required. Covers auth authorization rules (`SecurityUtilTest`), JWT secret validation (`JwtServiceTest`), and the intelligence engine against 20 seeded items (`IntelligenceEngineTest`: ranking correctness, the forgotten-item bonus, the 30-day threshold).
+Runs against an in-memory H2 database with a fixed test-only JWT secret (`application-test.yml`) — no environment setup required. The `test` profile activates `NoOpAIService`, a stub `AIService` that never calls any real AI backend, so `ContextDetector`'s keyword-fallback path (and everything downstream of it) is exercised deterministically without Ollama/Groq/HuggingFace running. Covers auth authorization rules (`SecurityUtilTest`), JWT secret validation (`JwtServiceTest`), the intelligence engine against 20 seeded items (`IntelligenceEngineTest`: ranking correctness, the forgotten-item bonus, the 30-day threshold), and cosine similarity math plus the no-embedding fallback path (`CosineSimilarityTest`).
 
 ### Postman / Newman (against a running server)
 
@@ -300,7 +315,7 @@ forgottenBonus = 1.4  if unseen for 30+ days AND never viewed
                  1.0  otherwise
 ```
 
-- **contextMatch** (40% weight) comes from `ContextDetector` comparing the item's stored `lifeContext`/`emotionalContext`/tags against the user's own accumulated context weights (`user_contexts` table) — below 20 saved items, this is deliberately skipped in favor of recency + importance, since a from-scratch similarity signal is noisier than no signal at 20 data points.
+- **contextMatch** (40% weight) comes from `ContextDetector` (Upgrade 9): below 20 saved items, this is deliberately skipped in favor of recency + importance, since a from-scratch similarity signal is noisier than no signal at that volume. Above 20 items, it's **true semantic similarity** — cosine similarity between the query's embedding and each item's stored embedding (pure Java, `CosineSimilarity.of`, no external vector-math library) — so "how to concentrate and avoid distractions" matches an article about deep work even though it shares no words with it. An item with no embedding yet (or a query embedding that failed to generate) never silently drops out: it falls back to the original keyword/Jaccard + emotional/life-context match instead.
 - **recencyDecay** (30% weight) is exponential, not linear — an item saved yesterday and one saved 3 days ago should barely differ; one saved 90 days ago should differ a lot.
 - **engagementHistory** (30% weight) is the fraction of the item's own past `resurface_events` the user actually acted on (`VIEWED`/`SAVED_AGAIN`) versus dismissed — an item that's been shown before and ignored should rank lower next time, not identically.
 - **forgottenBonus** exists because the whole point of the product is surfacing things a user would otherwise never see again — an item that's genuinely old and never revisited gets a real, deliberate boost over one that's merely old.
@@ -319,15 +334,19 @@ Separately, `EngagementPatternService` learns *when* to resurface: it buckets ea
 
 **4. A bounded, generously-sized thread pool with `CallerRunsPolicy`, never an unbounded pool or the default `AbortPolicy`.** An unbounded `Executors.newCachedThreadPool()` can exhaust OS threads under burst load; a bounded pool with a too-small queue and the default `AbortPolicy` silently drops work when full (and worse, when that drop happens inside a Spring transaction-synchronization callback, the exception is swallowed entirely — see the bulk-import bug in git history). `CallerRunsPolicy` guarantees backpressure instead of data loss.
 
-**5. Context-aware search/resurfacing over keyword search, with an explicit cold-start fallback.** A from-scratch similarity engine is worth less than users' trust in early results — below 20 items, `ContextDetector` deliberately skips text/context similarity (unreliable signal at that volume) and falls back to recency + importance, rather than returning noisy "smart" results that erode trust in the feature.
+**5. Context-aware search/resurfacing over keyword search, with an explicit cold-start fallback.** A from-scratch similarity engine is worth less than users' trust in early results — below 20 items, `ContextDetector` deliberately skips real similarity scoring (unreliable signal at that volume) and falls back to recency + importance, rather than returning noisy "smart" results that erode trust in the feature.
+
+**6. Semantic search (embeddings + cosine similarity) over keyword/Jaccard matching, with a fallback that never silently drops a result.** `GET /api/vault/search` embeds the query and compares it against each item's stored embedding by cosine similarity, returning only results above a 0.30 similarity floor — this is what lets "how to concentrate and avoid distractions" surface an article about deep work with zero shared words. An item without an embedding yet (mid-backfill, or a transient AI-service failure) still gets scored, just via the older keyword-based method, rather than being excluded from search results entirely.
+
+**7. One `AIService` interface, two free implementations, selected by Spring profile.** The paid Claude API is gone entirely — `dev` uses a local Ollama container (`llama3.1:8b` + `nomic-embed-text`, zero cost, zero key), `prod` uses Groq's free-tier OpenAI-compatible API plus HuggingFace's hosted embedding API. The rest of the codebase (`ContentIntelligenceService`, `ContextDetector`) depends only on the interface and needed zero changes to swap providers.
 
 ## Known limitations
 
 - **No live deployment exists yet.** `render.yaml`, `sql/postgres/schema.sql`, `frontend/vercel.json`, and the `stacknode.dev` domain wiring are all committed and were verified locally (a real Postgres 16 container validated the schema against every JPA entity with `ddl-auto: validate`), but nothing has actually been deployed to Render/Vercel or pointed at real DNS — see [Deploying to production](#deploying-to-production) for the exact remaining steps and why they need real account access this environment doesn't have.
-- **Claude API calls have no per-user rate limiting or cost controls** beyond the request-level retry/backoff — a user hitting `/vault/save` at the 30/minute cap repeatedly could still generate meaningful Claude spend.
+- **No per-user rate limiting on AI service calls** beyond the request-level retry/backoff — a user hitting `/vault/save` at the 30/minute cap repeatedly generates a lot of Ollama/Groq/HuggingFace traffic, though none of it costs money on any of the three.
 - **The 401 authentication-entry-point returns the correct status code but Tomcat's default HTML error page, not the app's JSON envelope** — a known, flagged gap, not yet root-caused.
 - **No database connection pool tuning for scale** — HikariCP defaults are unchanged; under sustained high concurrency (see the bulk-import bugs found and fixed in git history) this is the next place contention would surface.
-- **No per-user Claude API key support** — one shared key/model config for the whole deployment.
+- **No per-user AI provider key support** — one shared Groq/HuggingFace key (prod) or local Ollama instance (dev) for the whole deployment.
 - **Digest generation and BehaviorLearner are single-node cron (`@Scheduled`)** — running more than one backend instance would double-run both jobs; there's no distributed lock.
 - **The Chrome extension's `host_permissions` and CORS origin are hardcoded to `localhost:8091`** — deploying the backend elsewhere requires updating both (documented above) and repacking the extension.
 - **No image optimization or CDN** for saved item thumbnails — `ogImageUrl` is stored and served as-is from the source site.
