@@ -22,6 +22,15 @@ public class VaultItemController {
         this.vaultItemService = vaultItemService;
     }
 
+    @GetMapping
+    public ApiResponse<io.memoryvault.dto.vault.PagedResponse<VaultItemResponse>> list(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "24") int size
+    ) {
+        Long userId = SecurityUtil.currentUserId();
+        return ApiResponse.success(vaultItemService.list(userId, page, size), "Vault items");
+    }
+
     @PostMapping("/save")
     @ResponseStatus(HttpStatus.CREATED)
     public ApiResponse<VaultItemResponse> save(@Valid @RequestBody SaveVaultItemRequest request) {
@@ -45,6 +54,12 @@ public class VaultItemController {
     public ApiResponse<List<SearchResultItem>> resurface(@RequestParam(defaultValue = "10") int limit) {
         Long userId = SecurityUtil.currentUserId();
         return ApiResponse.success(vaultItemService.resurfaceFeed(userId, limit), "Resurfacing feed");
+    }
+
+    @PostMapping("/{id}/rediscover")
+    public ApiResponse<VaultItemResponse> rediscover(@PathVariable Long id) {
+        Long userId = SecurityUtil.currentUserId();
+        return ApiResponse.success(vaultItemService.markRediscovered(userId, id), "Marked as rediscovered");
     }
 
     @GetMapping("/forgotten")

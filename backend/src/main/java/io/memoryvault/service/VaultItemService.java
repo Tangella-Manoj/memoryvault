@@ -86,6 +86,20 @@ public class VaultItemService {
     }
 
     @Transactional(readOnly = true)
+    public io.memoryvault.dto.vault.PagedResponse<VaultItemResponse> list(Long userId, int page, int size) {
+        var pageable = org.springframework.data.domain.PageRequest.of(page, size);
+        var result = vaultItemRepository.findByUserIdOrderBySavedAtDesc(userId, pageable);
+
+        return new io.memoryvault.dto.vault.PagedResponse<>(
+                result.getContent().stream().map(VaultItemResponse::from).collect(Collectors.toList()),
+                page,
+                size,
+                result.getTotalElements(),
+                result.getTotalPages()
+        );
+    }
+
+    @Transactional(readOnly = true)
     public VaultItemResponse getById(Long userId, Long itemId) {
         VaultItem item = vaultItemRepository.findById(itemId)
                 .filter(v -> v.getUser().getId().equals(userId))
@@ -111,6 +125,19 @@ public class VaultItemService {
         return resurfaceEngine.topResurfaceCandidates("", candidates, total, limit).stream()
                 .map(this::toSearchResult)
                 .collect(Collectors.toList());
+    }
+
+    @Transactional
+    public VaultItemResponse markRediscovered(Long userId, Long itemId) {
+        VaultItem item = vaultItemRepository.findById(itemId)
+                .filter(v -> v.getUser().getId().equals(userId))
+                .orElseThrow(() -> new ResourceNotFoundException("VaultItem", itemId));
+
+        item.setViewCount((item.getViewCount() != null ? item.getViewCount() : 0) + 1);
+        item.setLastSurfacedAt(java.time.Instant.now());
+        vaultItemRepository.save(item);
+
+        return VaultItemResponse.from(item);
     }
 
     @Transactional(readOnly = true)
