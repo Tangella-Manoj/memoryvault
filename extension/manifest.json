@@ -1,0 +1,22 @@
+{
+  "manifest_version": 3,
+  "name": "MemoryVault",
+  "version": "1.0.0",
+  "description": "Save anything to MemoryVault in one click, and let it resurface when you need it.",
+  "permissions": ["storage", "activeTab"],
+  "host_permissions": ["http://localhost:8091/*"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "css": ["content.css"],
+      "run_at": "document_idle"
+    }
+  ]
+}

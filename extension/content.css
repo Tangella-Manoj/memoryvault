@@ -1,0 +1,37 @@
+#memoryvault-fab {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  width: 52px;
+  height: 52px;
+  border-radius: 999px;
+  background: #2d6a6a;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.2);
+  cursor: pointer;
+  z-index: 2147483647;
+  font: 600 22px/1 system-ui, sans-serif;
+  border: none;
+  transition: transform 0.15s ease;
+}
+
+#memoryvault-fab:hover {
+  transform: scale(1.06);
+}
+
+#memoryvault-toast {
+  position: fixed;
+  bottom: 88px;
+  right: 24px;
+  background: #1f4d4d;
+  color: #fff;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font: 500 13px/1.4 system-ui, sans-serif;
+  z-index: 2147483647;
+  max-width: 240px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+}
