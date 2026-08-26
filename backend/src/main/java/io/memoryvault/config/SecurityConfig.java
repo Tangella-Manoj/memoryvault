@@ -62,9 +62,13 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
+        // The extension origin is pinned to this project's actual packed extension id
+        // (derived from extension-keys/key.pem via extension/manifest.json's "key" field),
+        // not a wildcard — see README "Chrome extension CORS" for how to regenerate both
+        // if the signing key ever changes.
         config.setAllowedOriginPatterns(List.of(
                 "http://localhost:5173",
-                "chrome-extension://*"
+                "chrome-extension://akcoccffjeibkkebonenilckdihakfjh"
         ));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));

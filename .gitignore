@@ -1,4 +1,5 @@
 .env
+extension-keys/key.pem
 node_modules/
 target/
 frontend/dist/

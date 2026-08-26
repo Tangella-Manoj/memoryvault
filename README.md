@@ -33,8 +33,9 @@ People save hundreds of articles, videos, and tweets they mean to revisit — an
 git clone <repo-url> memoryvault && cd memoryvault
 cp .env.example .env               # fill in ANTHROPIC_API_KEY at minimum
 docker compose up -d               # MySQL + phpMyAdmin
-docker exec -i memoryvault_mysql mysql -u"$(grep MYSQL_USER .env|cut -d= -f2)" -p"$(grep MYSQL_PASSWORD .env|cut -d= -f2)" "$(grep MYSQL_DATABASE .env|cut -d= -f2)" < sql/schema.sql
-docker exec -i memoryvault_mysql mysql -u"$(grep MYSQL_USER .env|cut -d= -f2)" -p"$(grep MYSQL_PASSWORD .env|cut -d= -f2)" "$(grep MYSQL_DATABASE .env|cut -d= -f2)" < sql/migration_001_refresh_tokens.sql
+for f in sql/schema.sql sql/migration_001_refresh_tokens.sql sql/migration_002_user_role.sql sql/migration_003_last_viewed_at.sql; do
+  docker exec -i memoryvault_mysql mysql -u"$(grep MYSQL_USER .env|cut -d= -f2)" -p"$(grep MYSQL_PASSWORD .env|cut -d= -f2)" "$(grep MYSQL_DATABASE .env|cut -d= -f2)" < "$f"
+done
 cd backend && ./mvnw spring-boot:run -Dspring-boot.run.profiles=dev &
 cd ../frontend && nvm use && npm install && npm run dev
 ```
@@ -49,6 +50,37 @@ Backend: `http://localhost:8091` (port configurable via `SERVER_PORT` in `.env`)
 4. Visit any page → click the floating "+" button to save it
 
 The extension talks to `http://localhost:8091` (see `extension/manifest.json` `host_permissions` — update for a deployed backend).
+
+### Chrome extension CORS
+
+The backend's CORS config (`SecurityConfig.corsConfigurationSource`) pins the allowed
+extension origin to one exact id — `chrome-extension://akcoccffjeibkkebonenilckdihakfjh`
+— not a `chrome-extension://*` wildcard, so no other installed extension can call the API.
+
+`extension/manifest.json` carries a `"key"` field (the extension's public key, base64
+DER) that makes this id **deterministic**: loading the extension unpacked or packing it
+into a `.crx` both produce the same id, as long as they're signed with the matching
+private key at `extension-keys/key.pem` (gitignored — generated locally, never committed).
+
+If you regenerate the keypair (or fork this project and want your own identity):
+
+```bash
+cd extension-keys
+openssl genrsa -out key.pem 2048
+openssl rsa -in key.pem -pubout -outform DER -out key.pub.der
+python3 -c "
+import base64, hashlib
+der = open('key.pub.der','rb').read()
+print('key field (put in manifest.json):', base64.b64encode(der).decode())
+digest = hashlib.sha256(der).digest()
+print('extension id (put in CorsConfigurationSource):',
+      ''.join(chr(97 + (b >> 4)) + chr(97 + (b & 0xf)) for b in digest[:16]))
+"
+```
+
+Then update both `extension/manifest.json`'s `"key"` field and the id in
+`SecurityConfig.corsConfigurationSource` with the printed values, and reload the
+unpacked extension.
 
 ## API reference
 

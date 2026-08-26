@@ -2,6 +2,7 @@
   "manifest_version": 3,
   "name": "MemoryVault",
   "version": "1.0.0",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAnCmhYzr4vYYwpa4Y9xEPogD8bB7dqdusfzovqRzLFCqLfQgzFyKqE968qh30A+j+W2indhjXvcRyvPYIEfsgWHnIM/7wtLNjsFJvhNrtuOtg3IJKoWRFgfavNp9M3bmD5UuPr3sgEtFaoUzYNyACyrWMKMvtNlYfBqu/4QMzj57sZ3bycTZDRNzM8Gci9CT01GZawLFDgj1/5xGwx7w0+PDYQbEuKpBWvKVhZNGVmUZjk9ZEuCSyoUBWYghOKrwGVZAV9D0hPMkp3Q7lzfL3jYenicjdMwiKHpMPszDTNXEjyh9ifoyYl3bx2t371PWAyiuqdZCRRWgdK/8xyjVpGwIDAQAB",
   "description": "Save anything to MemoryVault in one click, and let it resurface when you need it.",
   "permissions": ["storage", "activeTab"],
   "host_permissions": ["http://localhost:8091/*"],
