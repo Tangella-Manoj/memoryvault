@@ -77,6 +77,22 @@ public class AuthService {
         return issueTokens(user);
     }
 
+    /**
+     * Revokes a refresh token so it can no longer be used to mint new access tokens.
+     * The already-issued access token remains valid until it naturally expires (it's a
+     * stateless JWT, not tracked server-side) — this ends the ability to silently refresh,
+     * not the current session instantly.
+     *
+     * @param rawRefreshToken the token to revoke; unknown/already-revoked tokens are a no-op
+     */
+    @Transactional
+    public void logout(String rawRefreshToken) {
+        refreshTokenRepository.findByTokenHash(hash(rawRefreshToken)).ifPresent(stored -> {
+            stored.setRevoked(true);
+            refreshTokenRepository.save(stored);
+        });
+    }
+
     @Transactional
     public AuthResponse refresh(String rawRefreshToken) {
         String hash = hash(rawRefreshToken);

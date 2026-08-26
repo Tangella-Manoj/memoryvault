@@ -1,3 +1,9 @@
+app:
+  jwt:
+    # Fixed, non-production test-only secret so ./mvnw test needs no environment setup.
+    # 64 bytes / 512 bits — comfortably covers HS256/HS384/HS512.
+    secret: test-only-secret-do-not-use-in-production-0123456789abcdef0123456789abcdef
+
 spring:
   datasource:
     url: jdbc:h2:mem:memoryvault_test;DB_CLOSE_DELAY=-1;MODE=MySQL
