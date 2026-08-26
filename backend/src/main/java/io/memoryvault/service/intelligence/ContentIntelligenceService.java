@@ -11,6 +11,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.event.TransactionPhase;
+import org.springframework.transaction.event.TransactionalEventListener;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -53,9 +55,15 @@ public class ContentIntelligenceService {
     }
 
     @Async("intelligenceExecutor")
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    public void onVaultItemSaved(VaultItemSavedEvent event) {
+        enrich(event.vaultItemId());
+    }
+
     public void enrich(Long vaultItemId) {
         Optional<VaultItem> maybeItem = vaultItemRepository.findById(vaultItemId);
         if (maybeItem.isEmpty()) {
+            log.warn("enrich() found no VaultItem for id={}", vaultItemId);
             return;
         }
         VaultItem item = maybeItem.get();

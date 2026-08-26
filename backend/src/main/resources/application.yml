@@ -13,7 +13,7 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,scheduledtasks
+        include: health,scheduledtasks,behaviorLearner
 
 app:
   jwt:

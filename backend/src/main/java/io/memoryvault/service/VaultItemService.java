@@ -5,29 +5,44 @@ import io.memoryvault.domain.VaultItem;
 import io.memoryvault.domain.enums.ItemSource;
 import io.memoryvault.domain.enums.ItemStatus;
 import io.memoryvault.dto.vault.SaveVaultItemRequest;
+import io.memoryvault.dto.vault.SearchResultItem;
 import io.memoryvault.dto.vault.VaultItemResponse;
 import io.memoryvault.exception.ResourceNotFoundException;
 import io.memoryvault.repository.UserRepository;
 import io.memoryvault.repository.VaultItemRepository;
-import io.memoryvault.service.intelligence.ContentIntelligenceService;
+import io.memoryvault.service.intelligence.ContextDetector;
+import io.memoryvault.service.intelligence.ResurfaceEngine;
+import io.memoryvault.service.intelligence.ScoredVaultItem;
+import io.memoryvault.service.intelligence.VaultItemSavedEvent;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 public class VaultItemService {
 
     private final VaultItemRepository vaultItemRepository;
     private final UserRepository userRepository;
-    private final ContentIntelligenceService contentIntelligenceService;
+    private final ContextDetector contextDetector;
+    private final ResurfaceEngine resurfaceEngine;
+    private final ApplicationEventPublisher eventPublisher;
 
     public VaultItemService(
             VaultItemRepository vaultItemRepository,
             UserRepository userRepository,
-            ContentIntelligenceService contentIntelligenceService
+            ContextDetector contextDetector,
+            ResurfaceEngine resurfaceEngine,
+            ApplicationEventPublisher eventPublisher
     ) {
         this.vaultItemRepository = vaultItemRepository;
         this.userRepository = userRepository;
-        this.contentIntelligenceService = contentIntelligenceService;
+        this.contextDetector = contextDetector;
+        this.resurfaceEngine = resurfaceEngine;
+        this.eventPublisher = eventPublisher;
     }
 
     @Transactional
@@ -42,7 +57,7 @@ public class VaultItemService {
                 .build();
 
         item = vaultItemRepository.save(item);
-        contentIntelligenceService.enrich(item.getId());
+        eventPublisher.publishEvent(new VaultItemSavedEvent(item.getId()));
 
         return VaultItemResponse.from(item);
     }
@@ -53,5 +68,41 @@ public class VaultItemService {
                 .filter(v -> v.getUser().getId().equals(userId))
                 .orElseThrow(() -> new ResourceNotFoundException("VaultItem", itemId));
         return VaultItemResponse.from(item);
+    }
+
+    @Transactional(readOnly = true)
+    public List<SearchResultItem> search(Long userId, String query) {
+        List<VaultItem> candidates = processedItemsFor(userId);
+        int total = candidates.size();
+
+        return contextDetector.rank(query, candidates, total).stream()
+                .map(this::toSearchResult)
+                .collect(Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
+    public List<SearchResultItem> resurfaceFeed(Long userId, int limit) {
+        List<VaultItem> candidates = processedItemsFor(userId);
+        int total = candidates.size();
+
+        return resurfaceEngine.topResurfaceCandidates("", candidates, total, limit).stream()
+                .map(this::toSearchResult)
+                .collect(Collectors.toList());
+    }
+
+    private List<VaultItem> processedItemsFor(Long userId) {
+        return vaultItemRepository.findByUserIdOrderBySavedAtDesc(userId, Pageable.unpaged())
+                .getContent()
+                .stream()
+                .filter(v -> v.getStatus() == ItemStatus.PROCESSED)
+                .collect(Collectors.toList());
+    }
+
+    private SearchResultItem toSearchResult(ScoredVaultItem scored) {
+        return new SearchResultItem(
+                VaultItemResponse.from(scored.item()),
+                java.math.BigDecimal.valueOf(scored.score()).setScale(4, java.math.RoundingMode.HALF_UP),
+                scored.reason()
+        );
     }
 }
