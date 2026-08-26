@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Copy, Check, Mail } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '../lib/api'
+import YouTubeIntegration from '../components/profile/YouTubeIntegration'
 
 export default function Profile() {
   const [profile, setProfile] = useState(null)
@@ -53,6 +54,8 @@ export default function Profile() {
           </button>
         </div>
       </div>
+
+      <YouTubeIntegration />
     </div>
   )
 }
