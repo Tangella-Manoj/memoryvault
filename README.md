@@ -4,28 +4,54 @@
 
 People save hundreds of articles, videos, and tweets they mean to revisit — and almost never do. MemoryVault is an intelligence layer over your saved links: it detects what each item is about, understands the emotional and life context you saved it in, and proactively resurfaces forgotten items when they're actually relevant again, instead of leaving them to rot in a bookmarks folder.
 
+**Deployment status:** production infrastructure (`render.yaml`, a Postgres-compatible schema, Vercel config, and the `memoryvault.stacknode.dev` / `api.stacknode.dev` domain wiring) is committed and ready — see [Deploying to production](#deploying-to-production). Nothing has actually been deployed from this environment: that step needs a real Render account, Vercel account, and Name.com DNS access, none of which exist in this sandbox. Until someone runs that step, the app runs locally only (Quick start below).
+
+### The search overlay, live
+
+The Chrome extension's contextual search overlay, actually running against DuckDuckGo — this is a real recording of the real extension, not a mockup:
+
+![MemoryVault's search overlay appearing above DuckDuckGo results while typing "career growth tips"](docs/search-overlay-demo.gif)
+
 ## Architecture
 
+All 6 ingestion channels feed the same enrichment pipeline and land in the same vault:
+
 ```
-┌───────────┐      HTTPS/JSON       ┌──────────────┐     JDBC      ┌────────────┐
-│  React     │ ───────────────────▶ │  Spring Boot  │ ────────────▶ │ MySQL 8     │
-│  (Vite)    │ ◀─────────────────── │  REST API     │ ◀──────────── │ (Docker)    │
-└───────────┘                       │               │               └────────────┘
-      ▲                             │  @Async ──────┼──▶ Claude API (summarize,
-      │ chrome.runtime               │  intelligence  │    tag, context-classify)
-      │                             │  pipeline      │
-┌───────────┐   chrome-extension://  │               │
-│  Chrome    │ ───────────────────▶ │  X-Chrome-Token│
-│  extension │   session token       │  auth          │
-└───────────┘                       └──────┬─────────┘
-                                            │
-                              GitHub Actions│ push → main
-                       ┌────────────────────┴───────────────────┐
-                       │ mvnw test (H2) → npm build → docker build │
-                       └──────────────────────────────────────────┘
+                    ┌─ Manual save (web app "+" button) ─────────┐
+                    ├─ Chrome auto-capture (Instagram/Twitter) ──┤
+                    ├─ Contextual search overlay (read-only) ····┤   (surfaces existing items,
+                    ├─ PWA share target (Android) ───────────────┤    doesn't create new ones)
+                    ├─ Personal email inbox (SMTP / Mailgun) ────┤
+                    └─ YouTube sync (OAuth, 6-hourly) ───────────┘
+                                        │
+                                        ▼
+                    ┌──────────────────────────────────────┐
+                    │           Spring Boot REST API         │
+                    │  ┌────────────────────────────────┐  │      ┌─────────────┐
+                    │  │ @Async enrichment pipeline       │──┼────▶│ Claude API   │
+                    │  │ (summarize, tag, context-classify)│  │      │ (optional)   │
+                    │  └────────────────────────────────┘  │      └─────────────┘
+                    │  ┌────────────────────────────────┐  │
+                    │  │ ResurfaceEngine + EngagementPattern│  │      ┌─────────────┐
+                    │  │ Service → NotificationScheduler   │──┼────▶│ Web Push /   │
+                    │  └────────────────────────────────┘  │      │ FCM (VAPID)  │
+                    └──────────────┬─────────────────────────┘      └─────────────┘
+                                   │ JDBC
+                                   ▼
+                    ┌──────────────────────────┐
+                    │ MySQL 8 (Docker, local)   │
+                    │  — or —                    │
+                    │ PostgreSQL (Render, prod)  │
+                    └──────────────────────────┘
+                                   ▲
+                                   │ HTTPS/JSON
+                    ┌──────────────────────────┐
+                    │ React (Vite) — served      │
+                    │ locally or from Vercel     │
+                    └──────────────────────────┘
 ```
 
-**Environment isolation**: Java 17 + Maven via SDKMAN (`backend/.sdkmanrc`) with Maven Wrapper as the real guarantee (`./mvnw` works with no SDKMAN installed). Node 20 via nvm (`frontend/.nvmrc`). MySQL runs only in Docker — no system MySQL is ever touched.
+**Environment isolation**: Java 17 + Maven via SDKMAN (`backend/.sdkmanrc`) with Maven Wrapper as the real guarantee (`./mvnw` works with no SDKMAN installed). Node 20 via nvm (`frontend/.nvmrc`). MySQL runs only in Docker locally — no system MySQL is ever touched. Production swaps MySQL for a Render-managed PostgreSQL instance via the `prod` Spring profile; nothing else in the app changes (see [Deploying to production](#deploying-to-production)).
 
 ## Prerequisites
 
@@ -45,7 +71,7 @@ Nothing else needs to be installed globally — SDKMAN and nvm manage Java/Node 
 git clone <repo-url> memoryvault && cd memoryvault                      # 1
 cp .env.example .env && sed -i '' "s/JWT_SECRET=.*/JWT_SECRET=$(openssl rand -hex 32)/" .env  # 2
 docker compose up -d                                                     # 3
-for f in sql/schema.sql sql/migration_00{1,2,3}_*.sql; do docker exec -i memoryvault_mysql mysql -u"$(grep MYSQL_USER .env|cut -d= -f2)" -p"$(grep MYSQL_PASSWORD .env|cut -d= -f2)" "$(grep MYSQL_DATABASE .env|cut -d= -f2)" < "$f"; done  # 4
+for f in sql/schema.sql sql/migration_*.sql; do docker exec -i memoryvault_mysql mysql -u"$(grep MYSQL_USER .env|cut -d= -f2)" -p"$(grep MYSQL_PASSWORD .env|cut -d= -f2)" "$(grep MYSQL_DATABASE .env|cut -d= -f2)" < "$f"; done  # 4
 cd backend && ./mvnw spring-boot:run -Dspring-boot.run.profiles=dev &    # 5
 cd ../frontend && nvm use && npm install && npm run dev &                # 6
 ```
@@ -193,6 +219,50 @@ curl -X POST http://localhost:8091/api/vault/save \
   -d '{"url":"https://example.com"}'
 ```
 
+## Deploying to production
+
+Everything needed to deploy is committed; actually running it requires accounts this environment doesn't have credentials for. These are the exact steps.
+
+### 1. Backend on Render
+
+`render.yaml` in the project root defines a `memoryvault-backend` web service (built from `backend/Dockerfile`) and a managed `memoryvault-db` PostgreSQL database, with `healthCheckPath: /actuator/health` and `autoDeploy: true` on push to `main`.
+
+1. Push this repo to GitHub, then in the Render dashboard: **New → Blueprint**, point it at the repo. Render reads `render.yaml` and provisions both resources.
+2. Once `memoryvault-db` exists, run the schema against it once: `psql "$DATABASE_URL" -f sql/postgres/schema.sql` (verified locally against a real Postgres 16 container — see `sql/postgres/schema.sql`'s header comment for exactly what's different from the MySQL version and why).
+3. Fill in every `sync: false` variable below in the Render dashboard (Environment tab) — these are deliberately not in `render.yaml`, since a secret committed to a blueprint is a secret committed to git history forever.
+
+| Variable | Description | Where to get it |
+|---|---|---|
+| `JWT_SECRET` | Signs access/refresh tokens — must be ≥256 bits | `openssl rand -hex 32` |
+| `ANTHROPIC_API_KEY` | Enables Claude-generated summaries/tags (optional — enrichment falls back to the page's own meta description without it) | [console.anthropic.com](https://console.anthropic.com) |
+| `MAILGUN_WEBHOOK_SIGNING_KEY` | Verifies the HMAC signature on inbound email webhooks | Mailgun dashboard → Webhooks (only needed if using Mailgun instead of leaving the self-hosted SMTP receiver, which is disabled in prod — see the note in `render.yaml`) |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | YouTube OAuth sync | Google Cloud Console (see "Setting up YouTube OAuth" above) |
+| `TOKEN_ENCRYPTION_KEY` | AES-256 key encrypting stored OAuth tokens at rest | `openssl rand -hex 32` |
+| `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` | Push notification signing keypair | `npx web-push generate-vapid-keys` |
+
+`DB_HOST`/`DB_PORT`/`DB_NAME`/`DB_USER`/`DB_PASSWORD` are wired automatically from the `memoryvault-db` database via `fromDatabase` in `render.yaml` — nothing to fill in for those.
+
+### 2. Frontend on Vercel
+
+1. In the Vercel dashboard: **New Project**, import the same repo, set the root directory to `frontend/`.
+2. Vercel auto-detects Vite. `frontend/vercel.json` (committed) handles SPA routing and sets `Service-Worker-Allowed` / manifest headers so the PWA — service worker, share target, offline shell — works correctly once served from a real HTTPS origin (service workers require HTTPS or `localhost`; they silently fail to register anywhere else, which is also why this couldn't be verified on a plain `http://` deployment).
+3. `frontend/.env.production` (committed) already points the build at `https://api.stacknode.dev/api`. Override `VITE_VAPID_PUBLIC_KEY` in the Vercel dashboard with the real production VAPID public key generated above — the committed value is a placeholder.
+
+### 3. Custom domains
+
+Both are CNAME records added in Name.com's DNS panel for `stacknode.dev`, not something a Render/Vercel blueprint can do on its own:
+
+| Record | Points to | Where |
+|---|---|---|
+| `memoryvault` (→ `memoryvault.stacknode.dev`) | Vercel's provided CNAME target (shown in Vercel → Project → Settings → Domains after adding the domain) | Name.com → DNS records for `stacknode.dev` |
+| `api` (→ `api.stacknode.dev`) | The Render service's `onrender.com` hostname (shown in Render → Service → Settings → Custom Domains) | Name.com → DNS records for `stacknode.dev` |
+
+After both resolve, set `CORS_ALLOWED_ORIGINS=https://memoryvault.stacknode.dev` on the Render service (already the `render.yaml` default) and add the domain in both dashboards' custom-domain settings so they issue TLS certificates for it.
+
+### 4. Production smoke test
+
+Once both domains resolve, the same walkthrough this project runs locally applies: register at `https://memoryvault.stacknode.dev`, save 3 URLs, confirm enrichment completes within 60s, confirm search returns results, load the extension pointed at `https://api.stacknode.dev/api` (see the comment in `extension/background.js`) and confirm it can save, and open the share-target URL from a mobile browser. None of this has been run against a live deployment from this environment — there is no live deployment yet to run it against.
+
 ## Testing
 
 ### Unit / integration tests (H2, no Docker needed)
@@ -218,7 +288,26 @@ Each vault item gets an **importance score** (0–1) at save time: it starts at 
 
 The **intelligence score** shown on Dashboard/Analytics is a per-user rollup, not a per-item one: `average(importanceScore across all items) × 100`. It's a proxy for "how well-curated and engaged-with is this person's vault" — it rises as items accumulate real engagement signal, not just as more items get saved.
 
-Separately, **resurfacing** uses its own formula (not the importance score directly) — see `ResurfaceEngine`'s Javadoc: context match, recency decay, engagement history, and a 1.4x bonus for items unseen 30+ days.
+## How the resurfacing algorithm works
+
+Resurfacing — deciding which saved items to show back to a user, and in what order — uses its own formula, separate from the importance score above (`ResurfaceEngine.java`):
+
+```
+score = (contextMatch × 0.40 + recencyDecay × 0.30 + engagementHistory × 0.30) × forgottenBonus
+
+recencyDecay   = e^(-0.015 × daysSinceSaved)
+forgottenBonus = 1.4  if unseen for 30+ days AND never viewed
+                 1.0  otherwise
+```
+
+- **contextMatch** (40% weight) comes from `ContextDetector` comparing the item's stored `lifeContext`/`emotionalContext`/tags against the user's own accumulated context weights (`user_contexts` table) — below 20 saved items, this is deliberately skipped in favor of recency + importance, since a from-scratch similarity signal is noisier than no signal at 20 data points.
+- **recencyDecay** (30% weight) is exponential, not linear — an item saved yesterday and one saved 3 days ago should barely differ; one saved 90 days ago should differ a lot.
+- **engagementHistory** (30% weight) is the fraction of the item's own past `resurface_events` the user actually acted on (`VIEWED`/`SAVED_AGAIN`) versus dismissed — an item that's been shown before and ignored should rank lower next time, not identically.
+- **forgottenBonus** exists because the whole point of the product is surfacing things a user would otherwise never see again — an item that's genuinely old and never revisited gets a real, deliberate boost over one that's merely old.
+
+This is also the formula `NotificationSchedulerService` (Upgrade 5) uses to pick which 3 items go into a push notification — the same ranking, just triggered by the clock (a user's learned optimal hour) instead of by a page load.
+
+Separately, `EngagementPatternService` learns *when* to resurface: it buckets each user's `VIEWED`/`SAVED_AGAIN` events by hour-of-day, weights recent events more than old ones (`e^(-0.03 × daysAgo)`), and picks the hour with the highest weighted total as that user's "optimal hour" — recalculated every 48 hours, defaulting to 8am UTC until a user has 10+ qualifying events.
 
 ## Architecture decision records
 
@@ -234,7 +323,7 @@ Separately, **resurfacing** uses its own formula (not the importance score direc
 
 ## Known limitations
 
-- **No production deployment exists.** Everything here runs locally against Docker MySQL; there is no live/hosted URL for this project.
+- **No live deployment exists yet.** `render.yaml`, `sql/postgres/schema.sql`, `frontend/vercel.json`, and the `stacknode.dev` domain wiring are all committed and were verified locally (a real Postgres 16 container validated the schema against every JPA entity with `ddl-auto: validate`), but nothing has actually been deployed to Render/Vercel or pointed at real DNS — see [Deploying to production](#deploying-to-production) for the exact remaining steps and why they need real account access this environment doesn't have.
 - **Claude API calls have no per-user rate limiting or cost controls** beyond the request-level retry/backoff — a user hitting `/vault/save` at the 30/minute cap repeatedly could still generate meaningful Claude spend.
 - **The 401 authentication-entry-point returns the correct status code but Tomcat's default HTML error page, not the app's JSON envelope** — a known, flagged gap, not yet root-caused.
 - **No database connection pool tuning for scale** — HikariCP defaults are unchanged; under sustained high concurrency (see the bulk-import bugs found and fixed in git history) this is the next place contention would surface.

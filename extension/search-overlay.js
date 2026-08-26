@@ -12,7 +12,7 @@
   function findSearchInput() {
     if (isGoogle) return document.querySelector('textarea[name="q"], input[name="q"]');
     if (isBing) return document.querySelector('input#sb_form_q');
-    if (isDuckDuckGo) return document.querySelector('input#search_form_input, input[name="q"]');
+    if (isDuckDuckGo) return document.querySelector('textarea#searchbox_input, input#search_form_input, textarea[name="q"], input[name="q"]');
     return null;
   }
 

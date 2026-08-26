@@ -1,0 +1,96 @@
+# Render Blueprint — https://render.com/docs/blueprint-spec
+#
+# Deploys the backend's existing multi-stage Dockerfile as a web service, backed by a
+# Render-managed PostgreSQL instance (MySQL is not available on Render's free tier, so
+# production runs Postgres via the `prod` Spring profile — see sql/postgres/schema.sql
+# and application-prod.yml; local dev is unaffected and keeps using Docker MySQL).
+#
+# Render terminates TLS and issues the certificate for the service's onrender.com hostname
+# automatically. The custom domain (api.stacknode.dev) is attached via the Render dashboard
+# once the service exists — Blueprints cannot provision custom domains or DNS themselves.
+#
+# All `sync: false` vars must be filled in manually from the Render dashboard after the
+# first deploy — see the table in README.md's "Deploying to production" section for what
+# each one is and where to get it. None of them are committed here, on principle: a secret
+# checked into render.yaml is a secret checked into git history forever.
+
+databases:
+  - name: memoryvault-db
+    databaseName: memoryvault
+    plan: free
+    postgresMajorVersion: "16"
+
+services:
+  - type: web
+    name: memoryvault-backend
+    runtime: docker
+    dockerfilePath: backend/Dockerfile
+    dockerContext: backend
+    plan: free
+    region: singapore
+    healthCheckPath: /actuator/health
+    autoDeploy: true
+    envVars:
+      - key: SPRING_PROFILE
+        value: prod
+      # PORT is injected by Render; SERVER_PORT reads it via ${SERVER_PORT:8080} in application.yml —
+      # set explicitly here since Render's convention is $PORT, not $SERVER_PORT.
+      - key: SERVER_PORT
+        fromService:
+          type: web
+          name: memoryvault-backend
+          property: port
+      - key: DB_HOST
+        fromDatabase:
+          name: memoryvault-db
+          property: host
+      - key: DB_PORT
+        fromDatabase:
+          name: memoryvault-db
+          property: port
+      - key: DB_NAME
+        fromDatabase:
+          name: memoryvault-db
+          property: database
+      - key: DB_USER
+        fromDatabase:
+          name: memoryvault-db
+          property: user
+      - key: DB_PASSWORD
+        fromDatabase:
+          name: memoryvault-db
+          property: password
+      - key: JWT_SECRET
+        sync: false
+      - key: JWT_ACCESS_EXPIRY_MS
+        value: "86400000"
+      - key: JWT_REFRESH_EXPIRY_MS
+        value: "604800000"
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: ANTHROPIC_MODEL
+        value: claude-opus-5
+      - key: CORS_ALLOWED_ORIGINS
+        value: https://memoryvault.stacknode.dev
+      - key: FRONTEND_BASE_URL
+        value: https://memoryvault.stacknode.dev
+      - key: VAULT_EMAIL_DOMAIN
+        value: vault.stacknode.dev
+      - key: SMTP_RECEIVER_ENABLED
+        value: "false" # Render's free web service has no persistent open TCP port besides $PORT — use Mailgun in prod instead
+      - key: MAILGUN_WEBHOOK_SIGNING_KEY
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: GOOGLE_REDIRECT_URI
+        value: https://api.stacknode.dev/api/integrations/youtube/callback
+      - key: TOKEN_ENCRYPTION_KEY
+        sync: false
+      - key: VAPID_PUBLIC_KEY
+        sync: false
+      - key: VAPID_PRIVATE_KEY
+        sync: false
+      - key: VAPID_SUBJECT
+        value: mailto:support@memoryvault.dev

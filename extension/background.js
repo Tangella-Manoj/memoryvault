@@ -1,3 +1,6 @@
+// Points at the local dev backend by default. For a production-packed build, change this to
+// 'https://api.stacknode.dev/api' (already allow-listed in manifest.json's host_permissions
+// and in the backend's CORS config) and repack — see README "Deploying to production".
 const API_BASE = 'http://localhost:8091/api';
 
 async function getStoredToken() {
