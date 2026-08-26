@@ -2,6 +2,7 @@ package io.memoryvault.config;
 
 import io.memoryvault.security.ChromeSessionAuthenticationFilter;
 import io.memoryvault.security.JwtAuthenticationFilter;
+import io.memoryvault.security.RateLimitFilter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -23,13 +24,16 @@ public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final ChromeSessionAuthenticationFilter chromeSessionAuthenticationFilter;
+    private final RateLimitFilter rateLimitFilter;
 
     public SecurityConfig(
             JwtAuthenticationFilter jwtAuthenticationFilter,
-            ChromeSessionAuthenticationFilter chromeSessionAuthenticationFilter
+            ChromeSessionAuthenticationFilter chromeSessionAuthenticationFilter,
+            RateLimitFilter rateLimitFilter
     ) {
         this.jwtAuthenticationFilter = jwtAuthenticationFilter;
         this.chromeSessionAuthenticationFilter = chromeSessionAuthenticationFilter;
+        this.rateLimitFilter = rateLimitFilter;
     }
 
     @Bean
@@ -49,7 +53,8 @@ public class SecurityConfig {
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
-                .addFilterBefore(chromeSessionAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+                .addFilterAfter(chromeSessionAuthenticationFilter, JwtAuthenticationFilter.class)
+                .addFilterAfter(rateLimitFilter, ChromeSessionAuthenticationFilter.class);
 
         return http.build();
     }
