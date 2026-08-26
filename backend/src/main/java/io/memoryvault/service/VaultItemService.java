@@ -75,6 +75,11 @@ public class VaultItemService {
     }
 
     @Transactional
+    public VaultItemResponse saveFromShareTarget(Long userId, String url) {
+        return save(userId, new SaveVaultItemRequest(url, ItemSource.WEB));
+    }
+
+    @Transactional
     public VaultItemResponse saveFromChromeSelection(Long userId, String url, String selectedText) {
         User user = userRepository.getReferenceById(userId);
 

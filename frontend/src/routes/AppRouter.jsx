@@ -6,6 +6,7 @@ import Dashboard from '../pages/Dashboard'
 import Vault from '../pages/Vault'
 import Rediscovery from '../pages/Rediscovery'
 import Analytics from '../pages/Analytics'
+import ShareTarget from '../pages/ShareTarget'
 import ProtectedLayout from '../components/shared/ProtectedLayout'
 
 export default function AppRouter() {
@@ -15,6 +16,7 @@ export default function AppRouter() {
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+        <Route path="/share-target" element={<ShareTarget />} />
 
         <Route element={<ProtectedLayout />}>
           <Route path="/dashboard" element={<Dashboard />} />
