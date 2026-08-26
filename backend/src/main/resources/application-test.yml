@@ -3,6 +3,9 @@ app:
     # Fixed, non-production test-only secret so ./mvnw test needs no environment setup.
     # 64 bytes / 512 bits — comfortably covers HS256/HS384/HS512.
     secret: test-only-secret-do-not-use-in-production-0123456789abcdef0123456789abcdef
+  smtp-receiver:
+    # Binding a real socket per test run would be wasteful and flaky under parallel runs.
+    enabled: false
 
 spring:
   datasource:

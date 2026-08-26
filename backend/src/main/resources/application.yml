@@ -23,3 +23,19 @@ app:
   anthropic:
     api-key: ${ANTHROPIC_API_KEY:}
     model: ${ANTHROPIC_MODEL:claude-sonnet-5}
+  vault-email-domain: ${VAULT_EMAIL_DOMAIN:vault.stacknode.dev}
+  smtp-receiver:
+    enabled: ${SMTP_RECEIVER_ENABLED:true}
+    port: ${SMTP_RECEIVER_PORT:2525}
+  mailgun:
+    webhook-signing-key: ${MAILGUN_WEBHOOK_SIGNING_KEY:}
+  google:
+    client-id: ${GOOGLE_CLIENT_ID:}
+    client-secret: ${GOOGLE_CLIENT_SECRET:}
+    redirect-uri: ${GOOGLE_REDIRECT_URI:http://localhost:8091/api/integrations/youtube/callback}
+  encryption:
+    key: ${TOKEN_ENCRYPTION_KEY:}
+  vapid:
+    public-key: ${VAPID_PUBLIC_KEY:}
+    private-key: ${VAPID_PRIVATE_KEY:}
+    subject: ${VAPID_SUBJECT:mailto:support@memoryvault.dev}
