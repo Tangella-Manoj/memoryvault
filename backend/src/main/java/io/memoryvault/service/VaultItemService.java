@@ -99,11 +99,16 @@ public class VaultItemService {
         );
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public VaultItemResponse getById(Long userId, Long itemId) {
         VaultItem item = vaultItemRepository.findById(itemId)
                 .filter(v -> v.getUser().getId().equals(userId))
                 .orElseThrow(() -> new ResourceNotFoundException("VaultItem", itemId));
+
+        item.setViewCount((item.getViewCount() != null ? item.getViewCount() : 0) + 1);
+        item.setLastViewedAt(java.time.Instant.now());
+        vaultItemRepository.save(item);
+
         return VaultItemResponse.from(item);
     }
 

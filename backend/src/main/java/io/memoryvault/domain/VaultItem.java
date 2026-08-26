@@ -81,6 +81,9 @@ public class VaultItem {
     @Column(name = "last_surfaced_at")
     private Instant lastSurfacedAt;
 
+    @Column(name = "last_viewed_at")
+    private Instant lastViewedAt;
+
     @Column(name = "view_count", nullable = false)
     @Builder.Default
     private Integer viewCount = 0;

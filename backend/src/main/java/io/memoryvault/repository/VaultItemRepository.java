@@ -24,7 +24,7 @@ public interface VaultItemRepository extends JpaRepository<VaultItem, Long>, Jpa
         select v from VaultItem v
         where v.user.id = :userId
           and v.savedAt <= :cutoff
-          and v.lastSurfacedAt is null
+          and (v.viewCount is null or v.viewCount = 0)
         order by v.importanceScore desc
         """)
     List<VaultItem> findForgottenCandidates(@Param("userId") Long userId, @Param("cutoff") Instant cutoff);
