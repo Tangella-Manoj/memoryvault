@@ -22,7 +22,7 @@ databases:
 
 services:
   - type: web
-    name: memoryvault-backend
+    name: memoryvault-backend-stacknode
     runtime: docker
     dockerfilePath: backend/Dockerfile
     dockerContext: backend
@@ -38,7 +38,7 @@ services:
       - key: SERVER_PORT
         fromService:
           type: web
-          name: memoryvault-backend
+          name: memoryvault-backend-stacknode
           property: port
       - key: DB_HOST
         fromDatabase:
