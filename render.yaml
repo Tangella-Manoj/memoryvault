@@ -27,7 +27,7 @@ services:
     dockerfilePath: backend/Dockerfile
     dockerContext: backend
     plan: free
-    region: singapore
+    region: oregon
     healthCheckPath: /actuator/health
     autoDeploy: true
     envVars:
