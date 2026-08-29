@@ -33,13 +33,7 @@ services:
     envVars:
       - key: SPRING_PROFILE
         value: prod
-      # PORT is injected by Render; SERVER_PORT reads it via ${SERVER_PORT:8080} in application.yml —
-      # set explicitly here since Render's convention is $PORT, not $SERVER_PORT.
-      - key: SERVER_PORT
-        fromService:
-          type: web
-          name: memoryvault-backend-stacknode
-          property: port
+      # PORT is injected automatically by Render; application.yml reads it.
       - key: DB_HOST
         fromDatabase:
           name: memoryvault-db
