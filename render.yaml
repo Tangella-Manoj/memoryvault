@@ -22,7 +22,7 @@ databases:
 
 services:
   - type: web
-    name: memoryvault-backend-stacknode
+    name: memoryvault-api-prod-v1
     runtime: docker
     dockerfilePath: backend/Dockerfile
     dockerContext: backend
