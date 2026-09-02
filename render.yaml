@@ -14,11 +14,6 @@
 # each one is and where to get it. None of them are committed here, on principle: a secret
 # checked into render.yaml is a secret checked into git history forever.
 
-databases:
-  - name: memoryvault-db
-    databaseName: memoryvault
-    plan: free
-    postgresMajorVersion: "16"
 
 services:
   - type: web
@@ -35,25 +30,15 @@ services:
         value: prod
       # PORT is injected automatically by Render; application.yml reads it.
       - key: DB_HOST
-        fromDatabase:
-          name: memoryvault-db
-          property: host
+        sync: false
       - key: DB_PORT
-        fromDatabase:
-          name: memoryvault-db
-          property: port
+        sync: false
       - key: DB_NAME
-        fromDatabase:
-          name: memoryvault-db
-          property: database
+        sync: false
       - key: DB_USER
-        fromDatabase:
-          name: memoryvault-db
-          property: user
+        sync: false
       - key: DB_PASSWORD
-        fromDatabase:
-          name: memoryvault-db
-          property: password
+        sync: false
       - key: JWT_SECRET
         sync: false
       - key: JWT_ACCESS_EXPIRY_MS
