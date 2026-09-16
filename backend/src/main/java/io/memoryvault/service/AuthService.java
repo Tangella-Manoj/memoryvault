@@ -3,8 +3,11 @@ package io.memoryvault.service;
 import io.memoryvault.domain.RefreshToken;
 import io.memoryvault.domain.User;
 import io.memoryvault.dto.auth.AuthResponse;
+import io.memoryvault.dto.auth.ForgotPasswordRequest;
 import io.memoryvault.dto.auth.LoginRequest;
 import io.memoryvault.dto.auth.RegisterRequest;
+import io.memoryvault.dto.auth.ResetPasswordRequest;
+import io.memoryvault.exception.ApiException;
 import io.memoryvault.exception.EmailAlreadyRegisteredException;
 import io.memoryvault.exception.InvalidCredentialsException;
 import io.memoryvault.exception.InvalidRefreshTokenException;
@@ -12,6 +15,7 @@ import io.memoryvault.repository.RefreshTokenRepository;
 import io.memoryvault.repository.UserRepository;
 import io.memoryvault.security.JwtService;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,9 +27,13 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Base64;
 import java.util.HexFormat;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Service
 public class AuthService {
+
+    private record ResetCodeEntry(String email, String code, Instant expiresAt) {}
 
     private final UserRepository userRepository;
     private final RefreshTokenRepository refreshTokenRepository;
@@ -34,6 +42,7 @@ public class AuthService {
     private final long refreshExpiryMs;
     private final String vaultEmailDomain;
     private final SecureRandom secureRandom = new SecureRandom();
+    private final ConcurrentHashMap<String, ResetCodeEntry> resetCodes = new ConcurrentHashMap<>();
 
     public AuthService(
             UserRepository userRepository,
@@ -82,14 +91,63 @@ public class AuthService {
 
     @Transactional
     public AuthResponse login(LoginRequest request) {
-        User user = userRepository.findByEmail(request.email())
-                .orElseThrow(InvalidCredentialsException::new);
+        String email = request.email() != null ? request.email().trim().toLowerCase() : "";
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new InvalidCredentialsException("No account found with email: " + email));
 
         if (!passwordEncoder.matches(request.password(), user.getPasswordHash())) {
-            throw new InvalidCredentialsException();
+            throw new InvalidCredentialsException("Incorrect password. Please check your password or use forgot password.");
         }
 
         return issueTokens(user);
+    }
+
+    public Map<String, Object> forgotPassword(ForgotPasswordRequest request) {
+        String email = request.email() != null ? request.email().trim().toLowerCase() : "";
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new InvalidCredentialsException("No account found with email: " + email));
+
+        // Generate a 6-digit numeric reset code
+        String code = String.format("%06d", secureRandom.nextInt(1_000_000));
+        Instant expiresAt = Instant.now().plus(15, ChronoUnit.MINUTES);
+        resetCodes.put(email, new ResetCodeEntry(email, code, expiresAt));
+
+        return Map.of(
+                "email", email,
+                "resetCode", code,
+                "expiresInMinutes", 15,
+                "message", "Password reset code generated. Use code " + code + " to set your new password."
+        );
+    }
+
+    @Transactional
+    public void resetPassword(ResetPasswordRequest request) {
+        String email = request.email() != null ? request.email().trim().toLowerCase() : "";
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new InvalidCredentialsException("No account found with email: " + email));
+
+        ResetCodeEntry entry = resetCodes.get(email);
+        if (entry == null || entry.expiresAt().isBefore(Instant.now())) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_RESET_CODE",
+                    "Reset code has expired or was not requested. Please request a new one.");
+        }
+
+        if (!entry.code().equals(request.token().trim())) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_RESET_CODE",
+                    "Invalid reset code. Please check and try again.");
+        }
+
+        user.setPasswordHash(passwordEncoder.encode(request.newPassword()));
+        userRepository.save(user);
+
+        // Consume reset code
+        resetCodes.remove(email);
+
+        // Revoke all existing refresh tokens
+        refreshTokenRepository.findAllByUser(user).forEach(rt -> {
+            rt.setRevoked(true);
+            refreshTokenRepository.save(rt);
+        });
     }
 
     /**

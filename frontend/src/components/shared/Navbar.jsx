@@ -1,5 +1,5 @@
 import { Link, useNavigate } from 'react-router-dom'
-import { Brain, LayoutDashboard, Library, Sparkles, BarChart3, User, LogOut } from 'lucide-react'
+import { Brain, LayoutDashboard, Library, Sparkles, BarChart3, User, LogOut, Download } from 'lucide-react'
 import { useAuthStore } from '../../stores/authStore'
 
 const navItems = [
@@ -41,6 +41,14 @@ export default function Navbar() {
       </div>
 
       <div className="flex items-center gap-3">
+        <Link
+          to="/extension"
+          className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-teal-800 bg-teal-50 hover:bg-teal-100 border border-teal-200 transition-colors"
+          title="Download Chrome Extension"
+        >
+          <Download className="w-3.5 h-3.5 text-teal-600" />
+          <span>Extension</span>
+        </Link>
         <span className="text-sm text-slate-500">{user?.displayName}</span>
         <button
           onClick={handleLogout}
