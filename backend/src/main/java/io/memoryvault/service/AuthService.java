@@ -73,12 +73,13 @@ public class AuthService {
 
     @Transactional
     public AuthResponse register(RegisterRequest request) {
-        if (userRepository.existsByEmail(request.email())) {
-            throw new EmailAlreadyRegisteredException(request.email());
+        String email = request.email() != null ? request.email().trim().toLowerCase() : "";
+        if (userRepository.existsByEmailIgnoreCase(email)) {
+            throw new EmailAlreadyRegisteredException(email);
         }
 
         User user = User.builder()
-                .email(request.email())
+                .email(email)
                 .passwordHash(passwordEncoder.encode(request.password()))
                 .displayName(request.displayName())
                 .timezone("UTC")
@@ -92,11 +93,11 @@ public class AuthService {
     @Transactional
     public AuthResponse login(LoginRequest request) {
         String email = request.email() != null ? request.email().trim().toLowerCase() : "";
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new InvalidCredentialsException("No account found with email: " + email));
+        User user = userRepository.findByEmailIgnoreCase(email)
+                .orElseThrow(() -> new InvalidCredentialsException("USER_NOT_FOUND", "No account found with email: " + email));
 
         if (!passwordEncoder.matches(request.password(), user.getPasswordHash())) {
-            throw new InvalidCredentialsException("Incorrect password. Please check your password or use forgot password.");
+            throw new InvalidCredentialsException("INVALID_PASSWORD", "Incorrect password. Please check your password or use forgot password.");
         }
 
         return issueTokens(user);
@@ -104,8 +105,8 @@ public class AuthService {
 
     public Map<String, Object> forgotPassword(ForgotPasswordRequest request) {
         String email = request.email() != null ? request.email().trim().toLowerCase() : "";
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new InvalidCredentialsException("No account found with email: " + email));
+        User user = userRepository.findByEmailIgnoreCase(email)
+                .orElseThrow(() -> new InvalidCredentialsException("USER_NOT_FOUND", "No account found with email: " + email));
 
         // Generate a 6-digit numeric reset code
         String code = String.format("%06d", secureRandom.nextInt(1_000_000));
@@ -123,8 +124,8 @@ public class AuthService {
     @Transactional
     public void resetPassword(ResetPasswordRequest request) {
         String email = request.email() != null ? request.email().trim().toLowerCase() : "";
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new InvalidCredentialsException("No account found with email: " + email));
+        User user = userRepository.findByEmailIgnoreCase(email)
+                .orElseThrow(() -> new InvalidCredentialsException("USER_NOT_FOUND", "No account found with email: " + email));
 
         ResetCodeEntry entry = resetCodes.get(email);
         if (entry == null || entry.expiresAt().isBefore(Instant.now())) {

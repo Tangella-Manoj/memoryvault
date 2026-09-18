@@ -57,11 +57,12 @@ class AuthServiceTest {
     @Test
     void login_userNotFound_throwsExactError() {
         LoginRequest req = new LoginRequest("missing@test.com", "Password@123");
-        when(userRepository.findByEmail("missing@test.com")).thenReturn(Optional.empty());
+        when(userRepository.findByEmailIgnoreCase("missing@test.com")).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> authService.login(req))
                 .isInstanceOf(InvalidCredentialsException.class)
-                .hasMessage("No account found with email: missing@test.com");
+                .hasMessage("No account found with email: missing@test.com")
+                .matches(e -> "USER_NOT_FOUND".equals(((InvalidCredentialsException) e).getErrorCode()));
     }
 
     @Test
@@ -74,21 +75,23 @@ class AuthServiceTest {
                 .build();
 
         LoginRequest req = new LoginRequest("user@test.com", "WrongPassword@1");
-        when(userRepository.findByEmail("user@test.com")).thenReturn(Optional.of(user));
+        when(userRepository.findByEmailIgnoreCase("user@test.com")).thenReturn(Optional.of(user));
 
         assertThatThrownBy(() -> authService.login(req))
                 .isInstanceOf(InvalidCredentialsException.class)
-                .hasMessage("Incorrect password. Please check your password or use forgot password.");
+                .hasMessage("Incorrect password. Please check your password or use forgot password.")
+                .matches(e -> "INVALID_PASSWORD".equals(((InvalidCredentialsException) e).getErrorCode()));
     }
 
     @Test
     void forgotPassword_userNotFound_throwsExactError() {
         ForgotPasswordRequest req = new ForgotPasswordRequest("ghost@test.com");
-        when(userRepository.findByEmail("ghost@test.com")).thenReturn(Optional.empty());
+        when(userRepository.findByEmailIgnoreCase("ghost@test.com")).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> authService.forgotPassword(req))
                 .isInstanceOf(InvalidCredentialsException.class)
-                .hasMessage("No account found with email: ghost@test.com");
+                .hasMessage("No account found with email: ghost@test.com")
+                .matches(e -> "USER_NOT_FOUND".equals(((InvalidCredentialsException) e).getErrorCode()));
     }
 
     @Test
@@ -100,7 +103,7 @@ class AuthServiceTest {
                 .displayName("Test User")
                 .build();
 
-        when(userRepository.findByEmail("user@test.com")).thenReturn(Optional.of(user));
+        when(userRepository.findByEmailIgnoreCase("user@test.com")).thenReturn(Optional.of(user));
         when(userRepository.save(any(User.class))).thenAnswer(i -> i.getArgument(0));
         when(refreshTokenRepository.findAllByUser(user)).thenReturn(List.of());
 

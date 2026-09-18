@@ -55,14 +55,27 @@ export default function Login() {
       toast.success('Welcome back!')
       navigate('/dashboard')
     } catch (err) {
-      const message = err.response?.data?.message || 'Login failed. Please check your credentials.'
+      const message =
+        err.response?.data?.message ||
+        (err.message === 'Network Error'
+          ? 'Cannot connect to server. Please check your network connection.'
+          : err.message || 'Login failed. Please check your credentials.')
       setServerError(message)
       toast.error(message)
 
       const lower = message.toLowerCase()
-      if (lower.includes('no account found') || lower.includes('email')) {
+      if (
+        lower.includes('no account found') ||
+        lower.includes('user not found') ||
+        lower.includes('not registered') ||
+        lower.includes('email')
+      ) {
         setError('email', { type: 'server', message })
-      } else if (lower.includes('incorrect password') || lower.includes('password')) {
+      } else if (
+        lower.includes('incorrect password') ||
+        lower.includes('invalid password') ||
+        lower.includes('password')
+      ) {
         setError('password', { type: 'server', message })
       }
     } finally {
@@ -74,8 +87,14 @@ export default function Login() {
     if (serverError) setServerError(null)
   }
 
-  const isUserNotFound = serverError?.toLowerCase().includes('no account found')
-  const isWrongPassword = serverError?.toLowerCase().includes('incorrect password')
+  const isUserNotFound =
+    serverError?.toLowerCase().includes('no account found') ||
+    serverError?.toLowerCase().includes('user not found') ||
+    serverError?.toLowerCase().includes('not registered')
+  const isWrongPassword =
+    serverError?.toLowerCase().includes('incorrect password') ||
+    serverError?.toLowerCase().includes('invalid password') ||
+    serverError?.toLowerCase().includes('wrong password')
 
   return (
     <AuthLayout title="Sign in to MemoryVault" subtitle="Access your second brain and saved knowledge">
