@@ -1,5 +1,12 @@
 package io.memoryvault.domain.enums;
 
 public enum IntegrationPlatform {
-    YOUTUBE
+    YOUTUBE,
+    GITHUB,
+    NOTION,
+    OBSIDIAN,
+    SLACK,
+    TELEGRAM,
+    RAYCAST,
+    WEBHOOK
 }

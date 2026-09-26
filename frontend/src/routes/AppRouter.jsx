@@ -9,6 +9,7 @@ import Dashboard from '../pages/Dashboard'
 import Vault from '../pages/Vault'
 import Rediscovery from '../pages/Rediscovery'
 import Analytics from '../pages/Analytics'
+import Plugins from '../pages/Plugins'
 import Profile from '../pages/Profile'
 import ShareTarget from '../pages/ShareTarget'
 import ProtectedLayout from '../components/shared/ProtectedLayout'
@@ -31,6 +32,7 @@ export default function AppRouter() {
           <Route path="/vault" element={<Vault />} />
           <Route path="/rediscovery" element={<Rediscovery />} />
           <Route path="/analytics" element={<Analytics />} />
+          <Route path="/plugins" element={<Plugins />} />
           <Route path="/profile" element={<Profile />} />
         </Route>
 

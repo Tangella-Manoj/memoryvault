@@ -1,5 +1,5 @@
 import { Link, useNavigate } from 'react-router-dom'
-import { Brain, LayoutDashboard, Library, Sparkles, BarChart3, User, LogOut, Download } from 'lucide-react'
+import { Brain, LayoutDashboard, Library, Sparkles, BarChart3, User, LogOut, Download, Puzzle } from 'lucide-react'
 import { useAuthStore } from '../../stores/authStore'
 
 const navItems = [
@@ -7,6 +7,7 @@ const navItems = [
   { to: '/vault', label: 'Vault', icon: Library },
   { to: '/rediscovery', label: 'Rediscovery', icon: Sparkles },
   { to: '/analytics', label: 'Analytics', icon: BarChart3 },
+  { to: '/plugins', label: 'Plugins', icon: Puzzle },
   { to: '/profile', label: 'Profile', icon: User },
 ]
 

@@ -11,5 +11,7 @@ public interface UserIntegrationRepository extends JpaRepository<UserIntegration
 
     Optional<UserIntegration> findByUserIdAndPlatform(Long userId, IntegrationPlatform platform);
 
+    List<UserIntegration> findByUserId(Long userId);
+
     List<UserIntegration> findByPlatformAndSyncEnabledTrue(IntegrationPlatform platform);
 }

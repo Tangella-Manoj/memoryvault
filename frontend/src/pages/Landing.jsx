@@ -28,6 +28,8 @@ import {
   Flame,
   Lightbulb,
   GraduationCap,
+  Puzzle,
+  Send,
 } from 'lucide-react'
 import { useAuthStore } from '../stores/authStore'
 
@@ -193,12 +195,113 @@ const USE_CASES = [
   },
 ]
 
+// Featured plugins for ecosystem showcase
+const FEATURED_PLUGINS = [
+  {
+    id: 'obsidian',
+    name: 'Obsidian Local Vault',
+    category: 'Workflow & Export',
+    icon: FileText,
+    iconBg: 'bg-purple-600 text-white',
+    badge: 'Bi-directional Sync',
+    description: 'Auto-exports memory cards into local markdown files with YAML frontmatter, tags, and internal wikilinks.',
+    stats: '142 notes synced',
+    status: 'Active',
+    tags: ['Markdown', 'YAML', 'Wikilinks', 'Local First'],
+  },
+  {
+    id: 'github',
+    name: 'GitHub Stars & Repos',
+    category: 'Ingestion',
+    icon: Code2,
+    iconBg: 'bg-slate-900 text-white',
+    badge: 'Auto-Tagging',
+    description: 'Syncs starred repositories and bookmarked issues. Extracts README architecture and tags by primary language.',
+    stats: '28 repos indexed',
+    status: 'Active',
+    tags: ['Repositories', 'README Parser', 'Language Detection'],
+  },
+  {
+    id: 'notion',
+    name: 'Notion Database Exporter',
+    category: 'Workflow & Export',
+    icon: Database,
+    iconBg: 'bg-neutral-800 text-white',
+    badge: 'Relational DB',
+    description: 'Mirrors vault cards into customizable Notion tables, Kanban boards, and multi-select property fields.',
+    stats: 'Ready to connect',
+    status: 'Ready',
+    tags: ['Table View', 'Multi-Select', 'Property Mapping'],
+  },
+  {
+    id: 'raycast',
+    name: 'Raycast & Spotlight',
+    category: 'Desktop & Surface',
+    icon: Terminal,
+    iconBg: 'bg-rose-600 text-white',
+    badge: 'Global Shortcut',
+    description: 'Search your vault directly from macOS Spotlight or Raycast using ⌥ Space. Save clipboard links with 1 keystroke.',
+    stats: 'Native Extension',
+    status: 'Installed',
+    tags: ['macOS', 'Keyboard First', 'Clipboard Monitor'],
+  },
+  {
+    id: 'youtube',
+    name: 'YouTube Watch Later',
+    category: 'Ingestion',
+    icon: PlaySquare,
+    iconBg: 'bg-red-600 text-white',
+    badge: 'Auto-Transcribe',
+    description: 'Syncs your Watch Later playlist every 6 hours. Automatically transcribes video audio into searchable cards.',
+    stats: '19 videos synced',
+    status: 'Active',
+    tags: ['Video AI', 'Audio Transcripts', 'Timestamps'],
+  },
+  {
+    id: 'telegram',
+    name: 'Telegram & Slack Bots',
+    category: 'Ingestion',
+    icon: Send,
+    iconBg: 'bg-sky-600 text-white',
+    badge: 'Direct Message',
+    description: 'DM links, voice memos, or code snippets directly to @MemoryVaultBot. Instant async web scraping & embedding.',
+    stats: 'Real-time webhook',
+    status: 'Active',
+    tags: ['Chatbot', 'Voice Notes', 'Push Notifications'],
+  },
+  {
+    id: 'webhook',
+    name: 'Developer Webhooks & REST',
+    category: 'Developer SDK',
+    icon: Zap,
+    iconBg: 'bg-amber-600 text-white',
+    badge: 'Inbound API',
+    description: 'Ingest links from custom bash scripts, iOS Shortcuts, IFTTT, or GitHub Actions with personal API tokens.',
+    stats: 'cURL & REST SDK',
+    status: 'Ready',
+    tags: ['REST API', 'JSON Webhook', 'cURL', 'CI/CD'],
+  },
+  {
+    id: 'anki',
+    name: 'Anki Flashcard Generator',
+    category: 'Workflow & Export',
+    icon: GraduationCap,
+    iconBg: 'bg-emerald-600 text-white',
+    badge: 'Spaced Repetition',
+    description: 'Converts key takeaways and architecture summaries into .apkg flashcard decks for spaced repetition review.',
+    stats: 'SM-2 Algorithm',
+    status: 'Ready',
+    tags: ['Flashcards', 'APKG Export', 'Active Recall'],
+  },
+]
+
 export default function Landing() {
   const user = useAuthStore((s) => s.user)
   const accessToken = useAuthStore((s) => s.accessToken)
 
   const [activeUseCase, setActiveUseCase] = useState(0)
   const [selectedCategory, setSelectedCategory] = useState('All')
+  const [selectedPluginCategory, setSelectedPluginCategory] = useState('All')
   const [searchQuery, setSearchQuery] = useState('')
 
   // Filter sample playground items
@@ -284,6 +387,12 @@ export default function Landing() {
             </a>
             <a href="#interactive-vault" className="hover:text-teal-600 transition-colors">
               Live Demo
+            </a>
+            <a href="#plugins" className="hover:text-teal-600 transition-colors flex items-center gap-1">
+              Plugins
+              <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 bg-purple-100 text-purple-800 rounded">
+                Hub
+              </span>
             </a>
             <a href="#architecture" className="hover:text-teal-600 transition-colors">
               AI Stack
@@ -904,6 +1013,175 @@ export default function Landing() {
         </div>
       </section>
 
+      {/* ── SECTION: EXTENSIBLE PLUGINS & CONNECTORS ───────────────────── */}
+      <section id="plugins" className="py-16 sm:py-24 bg-slate-100/60 border-y border-slate-200">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6">
+          <div className="text-center max-w-3xl mx-auto mb-12">
+            <span className="text-xs font-bold uppercase tracking-wider text-purple-700 bg-purple-50 px-3 py-1 rounded-full border border-purple-200/60">
+              Ecosystem & Integrations
+            </span>
+            <h2 className="mt-4 text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight">
+              Connect Your Entire Stack With Plugins
+            </h2>
+            <p className="mt-4 text-base sm:text-lg text-slate-600">
+              MemoryVault isn't a closed silo. Connect your Obsidian vault, GitHub stars, Notion databases, Raycast
+              launcher, Telegram bots, and custom webhooks—with zero vendor lock-in.
+            </p>
+          </div>
+
+          {/* Plugin Category Filter */}
+          <div className="flex flex-wrap justify-center gap-2 mb-10">
+            {['All', 'Ingestion', 'Workflow & Export', 'Desktop & Surface', 'Developer SDK'].map((cat) => (
+              <button
+                key={cat}
+                onClick={() => setSelectedPluginCategory(cat)}
+                className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                  selectedPluginCategory === cat
+                    ? 'bg-slate-900 text-white shadow-xs'
+                    : 'bg-white text-slate-600 hover:bg-slate-200/80 border border-slate-200'
+                }`}
+              >
+                {cat}
+              </button>
+            ))}
+          </div>
+
+          {/* Plugins Grid */}
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-12">
+            {FEATURED_PLUGINS.filter(
+              (p) => selectedPluginCategory === 'All' || p.category === selectedPluginCategory
+            ).map((plugin) => {
+              const Icon = plugin.icon
+              return (
+                <div
+                  key={plugin.id}
+                  className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs hover:shadow-md hover:border-purple-300 transition-all flex flex-col justify-between"
+                >
+                  <div>
+                    <div className="flex items-start justify-between gap-3 mb-3">
+                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center shadow-xs ${plugin.iconBg}`}>
+                        <Icon className="w-5 h-5" />
+                      </div>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200">
+                        {plugin.badge}
+                      </span>
+                    </div>
+
+                    <h3 className="font-bold text-slate-900 text-base mb-1.5 leading-snug">{plugin.name}</h3>
+                    <p className="text-xs text-slate-600 leading-relaxed mb-4 line-clamp-3">{plugin.description}</p>
+                  </div>
+
+                  <div>
+                    {/* Status Badge */}
+                    <div className="flex items-center justify-between text-[11px] font-mono text-slate-500 pt-3 border-t border-slate-100">
+                      <span className="flex items-center gap-1.5 text-emerald-600 font-medium">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                        {plugin.status}
+                      </span>
+                      <span className="text-slate-400">{plugin.stats}</span>
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+
+          {/* Dual Interactive Previews (Obsidian Markdown vs Webhook) */}
+          <div className="grid lg:grid-cols-2 gap-6 items-stretch mb-12">
+            {/* Box 1: Obsidian Local Vault Export Sample */}
+            <div className="bg-slate-900 text-slate-100 rounded-2xl p-6 border border-slate-800 shadow-lg flex flex-col justify-between font-mono text-xs">
+              <div>
+                <div className="flex items-center justify-between pb-3 mb-4 border-b border-slate-800">
+                  <div className="flex items-center gap-2">
+                    <FileText className="w-4 h-4 text-purple-400" />
+                    <span className="font-semibold text-slate-200">Obsidian Note Output (.md)</span>
+                  </div>
+                  <span className="text-[11px] text-emerald-400 bg-emerald-950/80 px-2 py-0.5 rounded border border-emerald-800">
+                    Auto-generated YAML
+                  </span>
+                </div>
+                <pre className="text-slate-300 overflow-x-auto leading-relaxed whitespace-pre-wrap">
+{`---
+id: mv-9482
+title: "Designing Resilient Distributed Systems"
+url: "https://martinfowler.com/articles/distributed-systems.html"
+category: Architecture
+tags: [distributed-systems, spring-boot, resilience]
+synced_at: 2026-09-27T00:50:00Z
+resurface_score: 9.8
+---
+
+# Designing Resilient Distributed Systems
+> Resurfaced by [[MemoryVault]] vector cosine similarity
+
+## AI Executive Summary
+Deep dive into asynchronous pipelining, reactive connection pooling,
+and circuit breaker patterns to prevent cascading failures...`}
+                </pre>
+              </div>
+              <div className="mt-4 pt-3 border-t border-slate-800/80 text-[11px] text-slate-400 flex items-center justify-between">
+                <span>Direct disk sync into ~/Documents/Obsidian</span>
+                <span className="text-purple-400 font-semibold">100% Offline Markdown</span>
+              </div>
+            </div>
+
+            {/* Box 2: Developer Inbound Webhook / REST SDK */}
+            <div className="bg-slate-900 text-slate-100 rounded-2xl p-6 border border-slate-800 shadow-lg flex flex-col justify-between font-mono text-xs">
+              <div>
+                <div className="flex items-center justify-between pb-3 mb-4 border-b border-slate-800">
+                  <div className="flex items-center gap-2">
+                    <Terminal className="w-4 h-4 text-amber-400" />
+                    <span className="font-semibold text-slate-200">Inbound Webhook Trigger</span>
+                  </div>
+                  <span className="text-[11px] text-amber-400 bg-amber-950/80 px-2 py-0.5 rounded border border-amber-800">
+                    REST API SDK
+                  </span>
+                </div>
+                <pre className="text-slate-300 overflow-x-auto leading-relaxed whitespace-pre-wrap">
+{`curl -X POST https://memoryvault.app/api/integrations/webhook \\
+  -H "Authorization: Bearer mv_live_sec_****************" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "url": "https://github.com/confluentinc/schema-registry",
+    "emotionalContext": "Deep Study",
+    "tags": ["Kafka", "Streaming", "SchemaRegistry"],
+    "priority": 9.5
+  }'
+
+# Response 202 Accepted:
+# {"status":"ENQUEUED","enrichmentJobId":"job_98412"}`}
+                </pre>
+              </div>
+              <div className="mt-4 pt-3 border-t border-slate-800/80 text-[11px] text-slate-400 flex items-center justify-between">
+                <span>Works with bash, iOS Shortcuts, Python, Raycast</span>
+                <span className="text-amber-400 font-semibold">Instant Ingestion</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Bottom Callout Banner */}
+          <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-purple-950 rounded-2xl p-6 sm:p-8 text-white flex flex-col md:flex-row items-center justify-between gap-6 shadow-md">
+            <div className="space-y-1 text-center md:text-left">
+              <div className="inline-flex items-center gap-2 text-purple-300 text-xs font-semibold uppercase tracking-wider mb-1">
+                <Puzzle className="w-4 h-4 text-purple-400" />
+                <span>Extensible Architecture</span>
+              </div>
+              <h3 className="text-xl sm:text-2xl font-bold">Build or Configure Plugins for Your Workflow</h3>
+              <p className="text-xs sm:text-sm text-slate-300 max-w-xl">
+                Access real-time sync telemetry, manage OAuth tokens, and test plugin connections directly inside the
+                interactive Plugin Hub.
+              </p>
+            </div>
+            <Link
+              to="/plugins"
+              className="inline-flex items-center gap-2 px-6 py-3 rounded-xl font-semibold bg-purple-500 hover:bg-purple-400 text-white text-sm shadow-md shadow-purple-500/25 transition-all shrink-0"
+            >
+              Open Plugin Hub & Marketplace <ArrowRight className="w-4 h-4" />
+            </Link>
+          </div>
+        </div>
+      </section>
+
       {/* ── SECTION: EXTENSION SPOTLIGHT ──────────────────────────────────── */}
       <section className="py-16 sm:py-20 bg-slate-900 text-white relative overflow-hidden">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 relative z-10 flex flex-col md:flex-row items-center justify-between gap-8">
@@ -985,6 +1263,9 @@ export default function Landing() {
             </Link>
             <Link to="/extension" className="hover:text-teal-600 transition-colors">
               Chrome Extension
+            </Link>
+            <Link to="/plugins" className="hover:text-teal-600 transition-colors">
+              Plugin Hub
             </Link>
             <a
               href="https://github.com/Tangella-Manoj/memoryvault"
