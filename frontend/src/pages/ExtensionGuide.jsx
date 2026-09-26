@@ -149,7 +149,7 @@ export default function ExtensionGuide() {
           {/* Primary Download CTA */}
           <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-4">
             <a
-              href="/MemoryVault-Extension.zip"
+              href={`${import.meta.env.BASE_URL}MemoryVault-Extension.zip`}
               download="MemoryVault-Extension.zip"
               className="w-full sm:w-auto inline-flex items-center justify-center gap-2.5 px-6 py-3.5 rounded-xl font-semibold text-white bg-teal-600 hover:bg-teal-700 shadow-lg shadow-teal-600/25 transition-all transform hover:-translate-y-0.5 active:translate-y-0 text-base"
             >
@@ -272,7 +272,7 @@ export default function ExtensionGuide() {
               Sign In to Web App
             </Link>
             <a
-              href="/MemoryVault-Extension.zip"
+              href={`${import.meta.env.BASE_URL}MemoryVault-Extension.zip`}
               download="MemoryVault-Extension.zip"
               className="px-5 py-2.5 rounded-lg border border-teal-400/40 text-teal-200 hover:bg-teal-500/10 font-medium text-sm transition-colors flex items-center gap-1.5"
             >

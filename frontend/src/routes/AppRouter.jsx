@@ -16,7 +16,7 @@ import ProtectedLayout from '../components/shared/ProtectedLayout'
 
 export default function AppRouter() {
   return (
-    <BrowserRouter>
+    <BrowserRouter basename={import.meta.env.BASE_URL}>
       <Toaster position="top-right" />
       <Routes>
         <Route path="/" element={<Landing />} />

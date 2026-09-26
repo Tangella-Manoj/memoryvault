@@ -517,7 +517,7 @@ export default function Landing() {
             <div className="p-4 sm:p-6 bg-slate-900 text-left">
               <div className="relative rounded-xl overflow-hidden border border-slate-800 shadow-inner bg-slate-950 flex flex-col items-center justify-center">
                 <img
-                  src="/search-overlay-demo.gif"
+                  src={`${import.meta.env.BASE_URL}search-overlay-demo.gif`}
                   alt="MemoryVault Search Overlay appearing above search results"
                   className="w-full max-h-[460px] object-cover object-top"
                   loading="lazy"
@@ -1205,7 +1205,7 @@ and circuit breaker patterns to prevent cascading failures...`}
                 View 2-Minute Install Guide <ArrowRight className="w-4 h-4" />
               </Link>
               <a
-                href="/MemoryVault-Extension.zip"
+                href={`${import.meta.env.BASE_URL}MemoryVault-Extension.zip`}
                 download="MemoryVault-Extension.zip"
                 className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold bg-slate-800 hover:bg-slate-700 text-white text-sm border border-slate-700 transition-all"
               >
