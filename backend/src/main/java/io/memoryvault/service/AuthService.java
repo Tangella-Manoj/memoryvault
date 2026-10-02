@@ -165,7 +165,8 @@ public class AuthService {
                     "Reset code has expired. Please request a new one.");
         }
 
-        if (!entry.getCodeHash().equals(hash(request.token().trim()))) {
+        String token = request.token() != null ? request.token().trim() : "";
+        if (!entry.getCodeHash().equals(hash(token))) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_RESET_CODE",
                     "Invalid reset code. Please check and try again.");
         }

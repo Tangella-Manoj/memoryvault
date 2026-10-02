@@ -56,6 +56,25 @@ public class GlobalExceptionHandler {
                 .body(ApiResponse.error(message, "VALIDATION_ERROR"));
     }
 
+    @ExceptionHandler(org.springframework.web.method.annotation.HandlerMethodValidationException.class)
+    public ResponseEntity<ApiResponse<Void>> handleHandlerMethodValidation(org.springframework.web.method.annotation.HandlerMethodValidationException ex) {
+        String message = ex.getAllValidationResults().stream()
+                .flatMap(r -> r.getResolvableErrors().stream())
+                .map(org.springframework.context.MessageSourceResolvable::getDefaultMessage)
+                .collect(Collectors.joining(", "));
+        if (message.isBlank()) {
+            message = "Validation error on request parameters";
+        }
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(ApiResponse.error(message, "VALIDATION_ERROR"));
+    }
+
+    @ExceptionHandler(org.springframework.web.method.annotation.MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ApiResponse<Void>> handleTypeMismatch(org.springframework.web.method.annotation.MethodArgumentTypeMismatchException ex) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(ApiResponse.error("Invalid parameter value for: " + ex.getName(), "TYPE_MISMATCH"));
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<Void>> handleGeneric(Exception ex) {
         log.error("Unhandled exception while processing request", ex);

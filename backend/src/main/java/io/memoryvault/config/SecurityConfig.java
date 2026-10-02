@@ -95,6 +95,7 @@ public class SecurityConfig {
                 "Origin",
                 "Access-Control-Request-Method",
                 "Access-Control-Request-Headers",
+                "X-Chrome-Token",
                 "X-Chrome-Session",
                 "X-Forwarded-For"
         ));

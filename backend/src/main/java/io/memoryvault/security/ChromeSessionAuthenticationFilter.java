@@ -33,8 +33,11 @@ public class ChromeSessionAuthenticationFilter extends OncePerRequestFilter {
     ) throws ServletException, IOException {
         if (SecurityContextHolder.getContext().getAuthentication() == null) {
             String token = request.getHeader(HEADER);
-            if (token != null) {
-                chromeSessionService.resolveUserId(token).ifPresent(userId -> {
+            if (token == null || token.isBlank()) {
+                token = request.getHeader("X-Chrome-Session");
+            }
+            if (token != null && !token.isBlank()) {
+                chromeSessionService.resolveUserId(token.trim()).ifPresent(userId -> {
                     var authentication = new UsernamePasswordAuthenticationToken(userId, null, List.of());
                     SecurityContextHolder.getContext().setAuthentication(authentication);
                 });

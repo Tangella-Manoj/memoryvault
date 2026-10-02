@@ -120,6 +120,20 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
+    void handleTypeMismatch_returnsBadRequestWithErrorCode() {
+        org.springframework.web.method.annotation.MethodArgumentTypeMismatchException ex =
+                mock(org.springframework.web.method.annotation.MethodArgumentTypeMismatchException.class);
+        when(ex.getName()).thenReturn("id");
+
+        ResponseEntity<ApiResponse<Void>> response = handler.handleTypeMismatch(ex);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().errorCode()).isEqualTo("TYPE_MISMATCH");
+        assertThat(response.getBody().message()).contains("Invalid parameter value for: id");
+    }
+
+    @Test
     void handleGeneric_returnsInternalServerError() {
         Exception ex = new RuntimeException("Unexpected DB drop");
 
