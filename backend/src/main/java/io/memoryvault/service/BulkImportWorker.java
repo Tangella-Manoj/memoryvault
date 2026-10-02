@@ -1,12 +1,13 @@
 package io.memoryvault.service;
 
-import io.memoryvault.domain.ImportJob;
 import io.memoryvault.domain.enums.ImportJobStatus;
 import io.memoryvault.repository.ImportJobRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.util.List;
 
 /**
@@ -23,6 +24,7 @@ import java.util.List;
 @Component
 public class BulkImportWorker {
 
+    private static final Logger log = LoggerFactory.getLogger(BulkImportWorker.class);
     private static final int BATCH_SIZE = 20;
 
     private final ImportJobRepository importJobRepository;
@@ -46,57 +48,40 @@ public class BulkImportWorker {
      */
     @Async("intelligenceExecutor")
     public void processAsync(Long jobId, Long userId, List<String> urls) {
-        markRunning(jobId);
+        try {
+            importJobRepository.updateStatus(jobId, ImportJobStatus.RUNNING, null);
 
-        for (int i = 0; i < urls.size(); i += BATCH_SIZE) {
-            List<String> batch = urls.subList(i, Math.min(i + BATCH_SIZE, urls.size()));
-            for (String url : batch) {
-                processOne(jobId, userId, url);
+            for (int i = 0; i < urls.size(); i += BATCH_SIZE) {
+                List<String> batch = urls.subList(i, Math.min(i + BATCH_SIZE, urls.size()));
+                int batchProcessed = 0;
+                int batchFailed = 0;
+
+                for (String url : batch) {
+                    try {
+                        persister.processOne(userId, url);
+                        batchProcessed++;
+                    } catch (Exception ex) {
+                        log.warn("[BulkImport] Failed to persist URL for user {}: {}", userId, url, ex);
+                        batchFailed++;
+                    }
+                }
+
+                // Batch flush progress to minimize database lock contention
+                if (batchProcessed > 0 || batchFailed > 0) {
+                    importJobRepository.incrementProgress(jobId, batchProcessed, batchFailed);
+                }
+            }
+
+            importJobRepository.updateStatus(jobId, ImportJobStatus.DONE, Instant.now());
+            log.info("[BulkImport] Successfully completed import job {} for user {}", jobId, userId);
+
+        } catch (Throwable t) {
+            log.error("[BulkImport] Fatal error during import job {} for user {}", jobId, userId, t);
+            try {
+                importJobRepository.updateStatus(jobId, ImportJobStatus.FAILED, Instant.now());
+            } catch (Exception ex) {
+                log.error("[BulkImport] Failed to record FAILED status for job {}", jobId, ex);
             }
         }
-
-        markDone(jobId);
-    }
-
-    @Transactional
-    void markRunning(Long jobId) {
-        importJobRepository.findById(jobId).ifPresent(job -> {
-            job.setStatus(ImportJobStatus.RUNNING);
-            importJobRepository.save(job);
-        });
-    }
-
-    void processOne(Long jobId, Long userId, String url) {
-        try {
-            persister.processOne(userId, url);
-            incrementProcessed(jobId);
-        } catch (Exception ex) {
-            incrementFailed(jobId);
-        }
-    }
-
-    @Transactional
-    void incrementProcessed(Long jobId) {
-        importJobRepository.findById(jobId).ifPresent(job -> {
-            job.setProcessed(job.getProcessed() + 1);
-            importJobRepository.save(job);
-        });
-    }
-
-    @Transactional
-    void incrementFailed(Long jobId) {
-        importJobRepository.findById(jobId).ifPresent(job -> {
-            job.setFailed(job.getFailed() + 1);
-            importJobRepository.save(job);
-        });
-    }
-
-    @Transactional
-    void markDone(Long jobId) {
-        importJobRepository.findById(jobId).ifPresent(job -> {
-            job.setStatus(ImportJobStatus.DONE);
-            job.setCompletedAt(java.time.Instant.now());
-            importJobRepository.save(job);
-        });
     }
 }

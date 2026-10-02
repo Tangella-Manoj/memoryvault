@@ -1,7 +1,11 @@
 package io.memoryvault.config;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.aop.interceptor.AsyncUncaughtExceptionHandler;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.scheduling.annotation.AsyncConfigurer;
 import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
@@ -12,7 +16,14 @@ import java.util.concurrent.ThreadPoolExecutor;
 @Configuration
 @EnableAsync
 @EnableScheduling
-public class AsyncConfig {
+public class AsyncConfig implements AsyncConfigurer {
+
+    private static final Logger log = LoggerFactory.getLogger(AsyncConfig.class);
+
+    @Override
+    public Executor getAsyncExecutor() {
+        return intelligenceExecutor();
+    }
 
     /**
      * A real production bug traced back to this bean's original config
@@ -32,7 +43,7 @@ public class AsyncConfig {
      * instead of the task being discarded.
      */
     @Bean(name = "intelligenceExecutor")
-    public Executor intelligenceExecutor() {
+    public ThreadPoolTaskExecutor intelligenceExecutor() {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
         executor.setCorePoolSize(4);
         executor.setMaxPoolSize(8);
@@ -41,5 +52,17 @@ public class AsyncConfig {
         executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
         executor.initialize();
         return executor;
+    }
+
+    @Override
+    public AsyncUncaughtExceptionHandler getAsyncUncaughtExceptionHandler() {
+        return (throwable, method, params) -> {
+            log.error("[AsyncError] Uncaught exception in async method {}.{} with params {}: {}",
+                    method.getDeclaringClass().getSimpleName(),
+                    method.getName(),
+                    params,
+                    throwable.getMessage(),
+                    throwable);
+        };
     }
 }

@@ -6,9 +6,20 @@ import SaveItemModal from '../vault/SaveItemModal'
 import NotificationPermissionModal from '../notifications/NotificationPermissionModal'
 
 export default function ProtectedLayout() {
-  const accessToken = useAuthGuard()
+  const { isAuthenticated, isRestoring } = useAuthGuard()
 
-  if (!accessToken) {
+  if (isRestoring) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-8 h-8 border-3 border-teal-600 border-t-transparent rounded-full animate-spin" />
+          <p className="text-sm text-slate-500 font-medium">Restoring session…</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (!isAuthenticated) {
     return null
   }
 
