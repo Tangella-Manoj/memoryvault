@@ -73,3 +73,18 @@ services:
         sync: false
       - key: VAPID_SUBJECT
         value: mailto:support@memoryvault.dev
+      - key: RESEND_API_KEY
+        sync: false
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        value: "587"
+      - key: SMTP_USERNAME
+        sync: false
+      - key: SMTP_PASSWORD
+        sync: false
+      - key: MAIL_FROM
+        value: MemoryVault <onboarding@resend.dev>
+      - key: EXPOSE_RESET_CODE
+        value: "false"
+

@@ -331,4 +331,68 @@ class AuthServiceTest {
         assertThat(validToken.isUsed()).isTrue();
         assertThat(passwordEncoder.matches("NewPassword@123", user.getPasswordHash())).isTrue();
     }
+
+    @Test
+    void forgotPassword_emailServiceConfigured_prodMode_dispatchesEmailAndHidesCode() {
+        EmailService mockEmailService = mock(EmailService.class);
+        when(mockEmailService.isConfigured()).thenReturn(true);
+        when(mockEmailService.sendPasswordResetEmailAsync(anyString(), anyString()))
+                .thenReturn(java.util.concurrent.CompletableFuture.completedFuture(true));
+
+        AuthService prodAuthService = new AuthService(
+                userRepository,
+                refreshTokenRepository,
+                passwordResetTokenRepository,
+                passwordEncoder,
+                jwtService,
+                mockEmailService,
+                604800000L,
+                "vault.test.com",
+                false // exposeResetCode = false (production)
+        );
+
+        User user = User.builder().id(1L).email("prod@test.com").passwordHash("hash").displayName("Prod").build();
+        when(userRepository.findByEmailIgnoreCase("prod@test.com")).thenReturn(Optional.of(user));
+
+        Map<String, Object> resp = prodAuthService.forgotPassword(new ForgotPasswordRequest("prod@test.com"));
+
+        assertThat(resp.get("email")).isEqualTo("prod@test.com");
+        assertThat(resp.get("emailDelivered")).isEqualTo(true);
+        assertThat(resp.get("resetCode")).isNull(); // NOT exposed in prod!
+        assertThat(resp.get("message").toString()).contains("sent to your email inbox");
+
+        verify(mockEmailService).sendPasswordResetEmailAsync(eq("prod@test.com"), anyString());
+    }
+
+    @Test
+    void forgotPassword_emailServiceUnconfigured_prodMode_fallsBackToDirectCode() {
+        EmailService unconfiguredEmailService = mock(EmailService.class);
+        when(unconfiguredEmailService.isConfigured()).thenReturn(false);
+
+        AuthService prodAuthService = new AuthService(
+                userRepository,
+                refreshTokenRepository,
+                passwordResetTokenRepository,
+                passwordEncoder,
+                jwtService,
+                unconfiguredEmailService,
+                604800000L,
+                "vault.test.com",
+                false // exposeResetCode = false
+        );
+
+        User user = User.builder().id(1L).email("unconfigured@test.com").passwordHash("hash").displayName("Unconfigured").build();
+        when(userRepository.findByEmailIgnoreCase("unconfigured@test.com")).thenReturn(Optional.of(user));
+
+        Map<String, Object> resp = prodAuthService.forgotPassword(new ForgotPasswordRequest("unconfigured@test.com"));
+
+        assertThat(resp.get("email")).isEqualTo("unconfigured@test.com");
+        assertThat(resp.get("emailDelivered")).isEqualTo(false);
+        // Because email service was unconfigured, resetCode MUST be safely provided as fallback:
+        assertThat(resp.get("resetCode")).isNotNull();
+        assertThat(resp.get("resetCode").toString()).hasSize(6);
+        assertThat(resp.get("message").toString()).contains("not configured");
+
+        verify(unconfiguredEmailService, never()).sendPasswordResetEmailAsync(anyString(), anyString());
+    }
 }

@@ -41,6 +41,7 @@ public class AuthService {
     private final PasswordResetTokenRepository passwordResetTokenRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
+    private final EmailService emailService;
     private final long refreshExpiryMs;
     private final String vaultEmailDomain;
     private final boolean exposeResetCode;
@@ -53,11 +54,33 @@ public class AuthService {
             PasswordResetTokenRepository passwordResetTokenRepository,
             PasswordEncoder passwordEncoder,
             JwtService jwtService,
+            EmailService emailService,
             @Value("${app.jwt.refresh-expiry-ms}") long refreshExpiryMs,
-            @Value("${app.vault-email-domain:vault.stacknode.dev}") String vaultEmailDomain
+            @Value("${app.vault-email-domain:vault.stacknode.dev}") String vaultEmailDomain,
+            @Value("${app.auth.expose-reset-code:false}") boolean exposeResetCode
+    ) {
+        this.userRepository = userRepository;
+        this.refreshTokenRepository = refreshTokenRepository;
+        this.passwordResetTokenRepository = passwordResetTokenRepository;
+        this.passwordEncoder = passwordEncoder;
+        this.jwtService = jwtService;
+        this.emailService = emailService != null ? emailService : new NoOpEmailService();
+        this.refreshExpiryMs = refreshExpiryMs;
+        this.vaultEmailDomain = vaultEmailDomain;
+        this.exposeResetCode = exposeResetCode;
+    }
+
+    public AuthService(
+            UserRepository userRepository,
+            RefreshTokenRepository refreshTokenRepository,
+            PasswordResetTokenRepository passwordResetTokenRepository,
+            PasswordEncoder passwordEncoder,
+            JwtService jwtService,
+            long refreshExpiryMs,
+            String vaultEmailDomain
     ) {
         this(userRepository, refreshTokenRepository, passwordResetTokenRepository,
-                passwordEncoder, jwtService, refreshExpiryMs, vaultEmailDomain, true);
+                passwordEncoder, jwtService, new NoOpEmailService(), refreshExpiryMs, vaultEmailDomain, true);
     }
 
     public AuthService(
@@ -70,14 +93,8 @@ public class AuthService {
             String vaultEmailDomain,
             boolean exposeResetCode
     ) {
-        this.userRepository = userRepository;
-        this.refreshTokenRepository = refreshTokenRepository;
-        this.passwordResetTokenRepository = passwordResetTokenRepository;
-        this.passwordEncoder = passwordEncoder;
-        this.jwtService = jwtService;
-        this.refreshExpiryMs = refreshExpiryMs;
-        this.vaultEmailDomain = vaultEmailDomain;
-        this.exposeResetCode = exposeResetCode;
+        this(userRepository, refreshTokenRepository, passwordResetTokenRepository,
+                passwordEncoder, jwtService, new NoOpEmailService(), refreshExpiryMs, vaultEmailDomain, exposeResetCode);
     }
 
     /**
@@ -158,14 +175,34 @@ public class AuthService {
 
         log.info("[PasswordReset] Generated 6-digit reset code for {}: {}", email, code);
 
+        boolean emailConfigured = emailService.isConfigured();
+        boolean emailDispatched = false;
+
+        if (emailConfigured) {
+            try {
+                emailService.sendPasswordResetEmailAsync(email, code);
+                emailDispatched = true;
+                log.info("[PasswordReset] Dispatched async reset email to {}", email);
+            } catch (Exception e) {
+                log.error("[PasswordReset] Failed to trigger async email dispatch for {}: {}", email, e.getMessage());
+            }
+        } else {
+            log.warn("[PasswordReset] Outbound email service is not configured (set RESEND_API_KEY or SMTP_HOST). Reset code for {}: {}", email, code);
+        }
+
         Map<String, Object> resp = new java.util.HashMap<>();
         resp.put("email", email);
         resp.put("expiresInMinutes", 15);
-        if (exposeResetCode) {
-            resp.put("resetCode", code);
-            resp.put("message", "Reset code generated: " + code + ". (Outbound email service is not configured; code provided directly).");
+        resp.put("emailDelivered", emailDispatched);
+
+        if (emailDispatched) {
+            resp.put("message", "A 6-digit password reset code has been sent to your email inbox. Please check your inbox and spam folder.");
+            if (exposeResetCode) {
+                resp.put("resetCode", code);
+            }
         } else {
-            resp.put("message", "If an account exists for this email, a reset code has been sent.");
+            resp.put("resetCode", code);
+            resp.put("message", "Outbound email service is not configured. For your convenience, your reset code is: " + code);
         }
 
         return resp;
