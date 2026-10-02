@@ -8,4 +8,7 @@ public record ForgotPasswordRequest(
         @Email(message = "Enter a valid email address")
         String email
 ) {
+    public ForgotPasswordRequest {
+        email = email != null ? email.trim() : null;
+    }
 }

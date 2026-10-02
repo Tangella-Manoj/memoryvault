@@ -16,4 +16,8 @@ public record ResetPasswordRequest(
         @Size(min = 8, message = "Password must be at least 8 characters")
         String newPassword
 ) {
+    public ResetPasswordRequest {
+        email = email != null ? email.trim() : null;
+        token = token != null ? token.trim() : null;
+    }
 }

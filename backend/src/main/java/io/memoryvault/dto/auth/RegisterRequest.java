@@ -13,4 +13,8 @@ public record RegisterRequest(
         String password,
         @NotBlank @Size(max = 120) String displayName
 ) {
+    public RegisterRequest {
+        email = email != null ? email.trim() : null;
+        displayName = displayName != null ? displayName.trim() : null;
+    }
 }
