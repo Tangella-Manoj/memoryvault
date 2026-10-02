@@ -1,3 +1,6 @@
+server:
+  port: ${PORT:8080}
+
 spring:
   # Render provides a single DATABASE_URL in the form postgres://user:pass@host:port/db.
   # Spring's own datasource.url property wants the jdbc: form, so it's assembled from the
