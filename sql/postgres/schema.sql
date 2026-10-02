@@ -157,15 +157,26 @@ CREATE INDEX idx_refresh_tokens_user ON refresh_tokens (user_id);
 CREATE TABLE user_integrations (
     id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    platform VARCHAR(20) NOT NULL CHECK (platform IN ('YOUTUBE')),
-    access_token TEXT NOT NULL,
-    refresh_token TEXT NOT NULL,
-    token_expires_at TIMESTAMP(3) NOT NULL,
+    platform VARCHAR(20) NOT NULL CHECK (platform IN ('YOUTUBE','GITHUB','OBSIDIAN','NOTION','RAYCAST','SLACK','TELEGRAM','WEBHOOK')),
+    -- Nullable: populated only after a real OAuth flow completes. Plugin-toggle stubs leave these NULL.
+    access_token TEXT,
+    refresh_token TEXT,
+    token_expires_at TIMESTAMP(3),
     last_synced_at TIMESTAMP(3),
     sync_enabled BOOLEAN NOT NULL DEFAULT TRUE,
     created_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT uq_user_integrations_user_platform UNIQUE (user_id, platform)
 );
+
+CREATE TABLE IF NOT EXISTS password_reset_tokens (
+    id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    code_hash VARCHAR(64) NOT NULL,  -- SHA-256 hex of the 6-digit OTP — never stored plain
+    expires_at TIMESTAMPTZ NOT NULL,
+    used BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX idx_prt_user_used ON password_reset_tokens(user_id, used);
 
 CREATE TABLE user_notification_preferences (
     id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,

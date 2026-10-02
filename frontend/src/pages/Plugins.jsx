@@ -2,26 +2,21 @@ import { useState, useEffect, useMemo } from 'react'
 import {
   Puzzle,
   CheckCircle2,
-  ExternalLink,
   Settings2,
   RefreshCw,
   Search,
   Sparkles,
   Zap,
-  Shield,
   FileText,
   Database,
   Terminal,
   MessageSquare,
   Send,
   Code2,
-  Download,
-  AlertCircle,
   Copy,
   Plus,
   PlaySquare,
   Radio,
-  Sliders,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '../lib/api'

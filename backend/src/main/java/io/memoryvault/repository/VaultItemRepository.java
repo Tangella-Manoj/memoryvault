@@ -41,4 +41,13 @@ public interface VaultItemRepository extends JpaRepository<VaultItem, Long>, Jpa
           and v.savedAt between :from and :to
         """)
     List<VaultItem> findSavedOnDate(@Param("userId") Long userId, @Param("from") Instant from, @Param("to") Instant to);
+
+    @Query("select avg(v.importanceScore) from VaultItem v where v.user.id = :userId")
+    Double avgImportanceScoreByUserId(@Param("userId") Long userId);
+
+    @Query("select v.contentType, count(v) from VaultItem v where v.user.id = :userId group by v.contentType")
+    List<Object[]> countByContentType(@Param("userId") Long userId);
+
+    @Query("select v.emotionalContext, count(v) from VaultItem v where v.user.id = :userId group by v.emotionalContext")
+    List<Object[]> countByEmotionalContext(@Param("userId") Long userId);
 }

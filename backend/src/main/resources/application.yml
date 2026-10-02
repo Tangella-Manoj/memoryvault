@@ -13,13 +13,15 @@ management:
   endpoints:
     web:
       exposure:
+        # Note: only /actuator/health is in SecurityConfig's permitAll list.
+        # scheduledtasks and behaviorLearner endpoints require valid authentication.
         include: health,scheduledtasks,behaviorLearner
 
 app:
   jwt:
     secret: ${JWT_SECRET}
-    access-expiry-ms: ${JWT_ACCESS_EXPIRY_MS:86400000}
-    refresh-expiry-ms: ${JWT_REFRESH_EXPIRY_MS:604800000}
+    access-expiry-ms: ${JWT_ACCESS_EXPIRY_MS:900000} # 15 minutes (was 24h)
+    refresh-expiry-ms: ${JWT_REFRESH_EXPIRY_MS:604800000} # 7 days
   ai:
     ollama:
       base-url: ${OLLAMA_BASE_URL:http://localhost:11434}

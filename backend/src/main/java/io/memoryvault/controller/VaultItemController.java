@@ -11,10 +11,15 @@ import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
+import org.springframework.validation.annotation.Validated;
+
 import java.util.List;
 
 @RestController
 @RequestMapping("/api/vault")
+@Validated
 public class VaultItemController {
 
     private final VaultItemService vaultItemService;
@@ -25,8 +30,8 @@ public class VaultItemController {
 
     @GetMapping
     public ApiResponse<io.memoryvault.dto.vault.PagedResponse<VaultItemResponse>> list(
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "24") int size
+            @RequestParam(defaultValue = "0") @Min(0) int page,
+            @RequestParam(defaultValue = "24") @Min(1) @Max(100) int size
     ) {
         Long userId = SecurityUtil.currentUserId();
         return ApiResponse.success(vaultItemService.list(userId, page, size), "Vault items");

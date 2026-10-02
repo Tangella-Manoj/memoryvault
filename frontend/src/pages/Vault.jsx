@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { Search } from 'lucide-react'
+import { useEffect, useState, useCallback } from 'react'
+import { Search, AlertCircle, RefreshCw } from 'lucide-react'
 import api from '../lib/api'
 import ItemCard from '../components/vault/ItemCard'
 import VaultFilters from '../components/vault/VaultFilters'
@@ -10,11 +10,20 @@ export default function Vault() {
   const [paged, setPaged] = useState(null)
   const [contentType, setContentType] = useState('')
   const [query, setQuery] = useState('')
+  const [listError, setListError] = useState(null)
   const { results: searchResults, loading: searching, search } = useSearch()
 
-  useEffect(() => {
-    api.get('/vault', { params: { page, size: 24 } }).then((res) => setPaged(res.data.data))
+  const loadVault = useCallback(() => {
+    setListError(null)
+    api
+      .get('/vault', { params: { page, size: 24 } })
+      .then((res) => setPaged(res.data?.data ?? null))
+      .catch(() => setListError('Failed to load vault. Please try again.'))
   }, [page])
+
+  useEffect(() => {
+    loadVault()
+  }, [loadVault])
 
   function handleSearchSubmit(e) {
     e.preventDefault()
@@ -48,6 +57,19 @@ export default function Vault() {
       )}
 
       {searching && <p className="text-sm text-slate-500">Searching…</p>}
+
+      {listError && !isSearching && (
+        <div className="flex items-center gap-3 py-6 text-center justify-center">
+          <AlertCircle className="w-5 h-5 text-red-400 shrink-0" />
+          <span className="text-sm text-slate-600">{listError}</span>
+          <button
+            onClick={loadVault}
+            className="inline-flex items-center gap-1.5 text-sm font-semibold text-teal-600 hover:text-teal-700"
+          >
+            <RefreshCw className="w-3.5 h-3.5" /> Retry
+          </button>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {items.map((item) => (

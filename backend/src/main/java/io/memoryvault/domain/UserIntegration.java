@@ -31,14 +31,19 @@ public class UserIntegration {
     @Column(nullable = false)
     private IntegrationPlatform platform;
 
-    /** Encrypted at rest via {@code TokenCipher} before persistence — never stored plaintext. */
-    @Column(name = "access_token", nullable = false, columnDefinition = "TEXT")
+    /**
+     * Encrypted at rest via {@code TokenCipher} before persistence — never stored plaintext.
+     * Nullable for integrations that have been toggled as a UI stub but have not yet completed
+     * a real OAuth authorization flow (e.g., GitHub, Notion, Slack). Populated when the user
+     * actually authorises access via the OAuth callback.
+     */
+    @Column(name = "access_token", columnDefinition = "TEXT")
     private String accessToken;
 
-    @Column(name = "refresh_token", nullable = false, columnDefinition = "TEXT")
+    @Column(name = "refresh_token", columnDefinition = "TEXT")
     private String refreshToken;
 
-    @Column(name = "token_expires_at", nullable = false)
+    @Column(name = "token_expires_at")
     private Instant tokenExpiresAt;
 
     @Column(name = "last_synced_at")

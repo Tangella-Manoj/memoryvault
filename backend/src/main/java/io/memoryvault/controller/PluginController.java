@@ -201,7 +201,8 @@ public class PluginController {
     ) {
         Long userId = SecurityUtil.currentUserId();
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+                .orElseThrow(() -> new io.memoryvault.exception.ApiException(
+                        org.springframework.http.HttpStatus.NOT_FOUND, "USER_NOT_FOUND", "User not found"));
 
         IntegrationPlatform platform;
         try {
@@ -220,9 +221,6 @@ public class PluginController {
             ui = UserIntegration.builder()
                     .user(user)
                     .platform(platform)
-                    .accessToken("mock_token_" + UUID.randomUUID())
-                    .refreshToken("mock_refresh_" + UUID.randomUUID())
-                    .tokenExpiresAt(Instant.now().plusSeconds(86400 * 30))
                     .syncEnabled(request.enabled())
                     .lastSyncedAt(Instant.now())
                     .build();

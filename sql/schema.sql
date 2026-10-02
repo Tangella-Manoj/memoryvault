@@ -1,14 +1,21 @@
 -- MemoryVault schema — MySQL 8.0
+--
+-- Consolidated production/dev baseline schema including all migrations up to 008.
+-- Use this file to initialize a fresh local development database:
+--   mysql -u root -p memoryvault < sql/schema.sql
 
 CREATE TABLE users (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     email VARCHAR(255) NOT NULL,
+    vault_email VARCHAR(255) NULL,
     password_hash VARCHAR(255) NOT NULL,
     display_name VARCHAR(120) NOT NULL,
+    role ENUM('USER','ADMIN') NOT NULL DEFAULT 'USER',
     timezone VARCHAR(60) NOT NULL DEFAULT 'UTC',
     created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
-    UNIQUE KEY uq_users_email (email)
+    UNIQUE KEY uq_users_email (email),
+    UNIQUE KEY uq_users_vault_email (vault_email)
 ) ENGINE=InnoDB;
 
 CREATE TABLE vault_items (
@@ -27,11 +34,14 @@ CREATE TABLE vault_items (
     life_context ENUM('CAREER','HEALTH','RELATIONSHIPS','FINANCE','LEARNING','CREATIVITY','TRAVEL','HOME','OTHER')
         NOT NULL DEFAULT 'OTHER',
     importance_score DECIMAL(5,4) NOT NULL DEFAULT 0.0000,
-    source ENUM('WEB','CHROME_EXTENSION','BULK_IMPORT') NOT NULL DEFAULT 'WEB',
+    source ENUM('WEB','CHROME_EXTENSION','BULK_IMPORT','INSTAGRAM','TWITTER','YOUTUBE','EMAIL') NOT NULL DEFAULT 'WEB',
+    external_id VARCHAR(255) NULL,
     saved_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     last_surfaced_at DATETIME(3) NULL,
+    last_viewed_at DATETIME(3) NULL,
     view_count INT NOT NULL DEFAULT 0,
     CONSTRAINT fk_vault_items_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    UNIQUE KEY uq_vault_items_user_external (user_id, external_id),
     KEY idx_vault_items_user_saved (user_id, saved_at),
     KEY idx_vault_items_user_status (user_id, status),
     KEY idx_vault_items_user_importance (user_id, importance_score)
@@ -116,4 +126,53 @@ CREATE TABLE chrome_sessions (
     created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     CONSTRAINT fk_chrome_sessions_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     UNIQUE KEY uq_chrome_sessions_token (session_token)
+) ENGINE=InnoDB;
+
+CREATE TABLE refresh_tokens (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    user_id BIGINT NOT NULL,
+    token_hash VARCHAR(255) NOT NULL,
+    expires_at DATETIME(3) NOT NULL,
+    revoked BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    CONSTRAINT fk_refresh_tokens_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    UNIQUE KEY uq_refresh_tokens_hash (token_hash),
+    KEY idx_refresh_tokens_user (user_id)
+) ENGINE=InnoDB;
+
+CREATE TABLE user_integrations (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    user_id BIGINT NOT NULL,
+    platform ENUM('YOUTUBE','GITHUB','OBSIDIAN','NOTION','RAYCAST','SLACK','TELEGRAM','WEBHOOK') NOT NULL,
+    access_token TEXT NULL,
+    refresh_token TEXT NULL,
+    token_expires_at DATETIME(3) NULL,
+    last_synced_at DATETIME(3) NULL,
+    sync_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    CONSTRAINT fk_user_integrations_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    UNIQUE KEY uq_user_integrations_user_platform (user_id, platform)
+) ENGINE=InnoDB;
+
+CREATE TABLE user_notification_preferences (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    user_id BIGINT NOT NULL,
+    optimal_hour INT NOT NULL DEFAULT 8,
+    optimal_day_of_week INT NULL,
+    push_subscription_json TEXT NULL,
+    notifications_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+    last_calculated_at DATETIME(3) NULL,
+    CONSTRAINT fk_notification_prefs_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    UNIQUE KEY uq_notification_prefs_user (user_id)
+) ENGINE=InnoDB;
+
+CREATE TABLE password_reset_tokens (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    user_id BIGINT NOT NULL,
+    code_hash VARCHAR(64) NOT NULL COMMENT 'SHA-256 hex of the 6-digit OTP — never plain text',
+    expires_at DATETIME(3) NOT NULL,
+    used BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    CONSTRAINT fk_prt_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    KEY idx_prt_user_used (user_id, used)
 ) ENGINE=InnoDB;

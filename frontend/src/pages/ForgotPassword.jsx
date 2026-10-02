@@ -13,7 +13,7 @@ export default function ForgotPassword() {
 
   const [step, setStep] = useState(1) // 1 = Request Code, 2 = Set New Password
   const [targetEmail, setTargetEmail] = useState(initialEmail)
-  const [generatedCodeHint, setGeneratedCodeHint] = useState('')
+
   const [submitting, setSubmitting] = useState(false)
   const [serverError, setServerError] = useState(null)
   const [showPassword, setShowPassword] = useState(false)
@@ -28,7 +28,6 @@ export default function ForgotPassword() {
   const {
     register: regStep2,
     handleSubmit: handleStep2,
-    setValue: setStep2Val,
     watch: watchStep2,
     formState: { errors: errorsStep2 },
   } = useForm()
@@ -45,16 +44,10 @@ export default function ForgotPassword() {
     setSubmitting(true)
     setServerError(null)
     try {
-      const resp = await api.post('/auth/forgot-password', { email: data.email.trim() })
-      const resData = resp.data?.data
+      await api.post('/auth/forgot-password', { email: data.email.trim() })
       setTargetEmail(data.email.trim())
 
-      if (resData?.resetCode) {
-        setGeneratedCodeHint(resData.resetCode)
-        setStep2Val('code', resData.resetCode)
-      }
-
-      toast.success('Reset code generated!')
+      toast.success('Check your email for the reset code!')
       setStep(2)
     } catch (err) {
       const msg = err.response?.data?.message || 'Failed to request reset code'
@@ -165,21 +158,13 @@ export default function ForgotPassword() {
       ) : (
         /* STEP 2: Enter Code & New Password */
         <form onSubmit={handleStep2(onResetPassword)} className="space-y-4" noValidate>
-          {generatedCodeHint && (
-            <div className="rounded-xl border border-teal-200 bg-teal-50 p-3.5 text-xs text-teal-900 flex items-start gap-2.5">
-              <CheckCircle2 className="w-4 h-4 text-teal-600 shrink-0 mt-0.5" />
-              <div>
-                <p className="font-semibold">Reset code generated:</p>
-                <p className="mt-0.5 text-xs">
-                  Your verification code is{' '}
-                  <span className="font-mono font-bold text-sm bg-teal-100 px-1.5 py-0.5 rounded text-teal-950">
-                    {generatedCodeHint}
-                  </span>
-                  . It expires in 15 minutes.
-                </p>
-              </div>
+          <div className="rounded-xl border border-blue-200 bg-blue-50 p-3.5 text-xs text-blue-900 flex items-start gap-2.5">
+            <CheckCircle2 className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+            <div>
+              <p className="font-semibold">Reset code sent!</p>
+              <p className="mt-0.5 text-xs">Check your email at <span className="font-mono font-medium">{targetEmail}</span> for a 6-digit code. It expires in 15 minutes.</p>
             </div>
-          )}
+          </div>
 
           <div>
             <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-1.5">

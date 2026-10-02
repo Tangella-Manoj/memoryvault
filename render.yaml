@@ -42,7 +42,7 @@ services:
       - key: JWT_SECRET
         sync: false
       - key: JWT_ACCESS_EXPIRY_MS
-        value: "86400000"
+        value: "900000"
       - key: JWT_REFRESH_EXPIRY_MS
         value: "604800000"
       - key: GROQ_API_KEY

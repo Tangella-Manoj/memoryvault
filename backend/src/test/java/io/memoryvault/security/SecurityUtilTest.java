@@ -50,4 +50,18 @@ class SecurityUtilTest {
         SecurityUtil.requireSelfOrAdmin(999L);
         // no exception => admin bypass works
     }
+
+    @Test
+    void currentUserId_whenAuthenticated_returnsUserId() {
+        authenticateAs(42L, "USER");
+        assertThat(SecurityUtil.currentUserId()).isEqualTo(42L);
+    }
+
+    @Test
+    void currentUserId_whenUnauthenticated_throwsUnauthorized() {
+        SecurityContextHolder.clearContext();
+        assertThatThrownBy(SecurityUtil::currentUserId)
+                .isInstanceOf(ApiException.class)
+                .satisfies(ex -> assertThat(((ApiException) ex).getStatus()).isEqualTo(HttpStatus.UNAUTHORIZED));
+    }
 }

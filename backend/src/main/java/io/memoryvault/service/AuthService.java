@@ -1,5 +1,6 @@
 package io.memoryvault.service;
 
+import io.memoryvault.domain.PasswordResetToken;
 import io.memoryvault.domain.RefreshToken;
 import io.memoryvault.domain.User;
 import io.memoryvault.dto.auth.AuthResponse;
@@ -11,6 +12,7 @@ import io.memoryvault.exception.ApiException;
 import io.memoryvault.exception.EmailAlreadyRegisteredException;
 import io.memoryvault.exception.InvalidCredentialsException;
 import io.memoryvault.exception.InvalidRefreshTokenException;
+import io.memoryvault.repository.PasswordResetTokenRepository;
 import io.memoryvault.repository.RefreshTokenRepository;
 import io.memoryvault.repository.UserRepository;
 import io.memoryvault.security.JwtService;
@@ -28,25 +30,23 @@ import java.time.temporal.ChronoUnit;
 import java.util.Base64;
 import java.util.HexFormat;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 @Service
 public class AuthService {
 
-    private record ResetCodeEntry(String email, String code, Instant expiresAt) {}
-
     private final UserRepository userRepository;
     private final RefreshTokenRepository refreshTokenRepository;
+    private final PasswordResetTokenRepository passwordResetTokenRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final long refreshExpiryMs;
     private final String vaultEmailDomain;
     private final SecureRandom secureRandom = new SecureRandom();
-    private final ConcurrentHashMap<String, ResetCodeEntry> resetCodes = new ConcurrentHashMap<>();
 
     public AuthService(
             UserRepository userRepository,
             RefreshTokenRepository refreshTokenRepository,
+            PasswordResetTokenRepository passwordResetTokenRepository,
             PasswordEncoder passwordEncoder,
             JwtService jwtService,
             @Value("${app.jwt.refresh-expiry-ms}") long refreshExpiryMs,
@@ -54,6 +54,7 @@ public class AuthService {
     ) {
         this.userRepository = userRepository;
         this.refreshTokenRepository = refreshTokenRepository;
+        this.passwordResetTokenRepository = passwordResetTokenRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
         this.refreshExpiryMs = refreshExpiryMs;
@@ -103,48 +104,81 @@ public class AuthService {
         return issueTokens(user);
     }
 
+    /**
+     * Generates a DB-persisted, hashed OTP for password reset.
+     *
+     * <p>The code is <strong>not</strong> returned in the API response — it must be
+     * delivered to the user out-of-band (email, SMS). Returning it in the HTTP body
+     * would let any network observer or browser-devtools log compromise the reset
+     * flow. Until a real email integration is wired, instruct the user to check their
+     * inbox (or configure SMTP/Mailgun so the code is actually sent).
+     *
+     * <p>Previous reset tokens for the same user are implicitly superseded — the
+     * {@link PasswordResetTokenRepository#findTopByUser_EmailIgnoreCaseAndUsedFalseOrderByCreatedAtDesc}
+     * query returns the most-recent one, so old requests simply become unreachable.
+     *
+     * @param request email of the account to reset
+     * @return a minimal acknowledgment map (no code)
+     */
+    @Transactional
     public Map<String, Object> forgotPassword(ForgotPasswordRequest request) {
         String email = request.email() != null ? request.email().trim().toLowerCase() : "";
         User user = userRepository.findByEmailIgnoreCase(email)
-                .orElseThrow(() -> new InvalidCredentialsException("USER_NOT_FOUND", "No account found with email: " + email));
+                .orElseThrow(() -> new InvalidCredentialsException("USER_NOT_FOUND",
+                        "No account found with email: " + email));
 
-        // Generate a 6-digit numeric reset code
         String code = String.format("%06d", secureRandom.nextInt(1_000_000));
         Instant expiresAt = Instant.now().plus(15, ChronoUnit.MINUTES);
-        resetCodes.put(email, new ResetCodeEntry(email, code, expiresAt));
+
+        PasswordResetToken resetToken = PasswordResetToken.builder()
+                .user(user)
+                .codeHash(hash(code))
+                .expiresAt(expiresAt)
+                .build();
+        passwordResetTokenRepository.save(resetToken);
+
+        // TODO: Send `code` to `email` via Mailgun / SendGrid here.
+        // The code must NOT be returned in this response (see Javadoc above).
 
         return Map.of(
                 "email", email,
-                "resetCode", code,
                 "expiresInMinutes", 15,
-                "message", "Password reset code generated. Use code " + code + " to set your new password."
+                "message", "If an account exists for this email, a reset code has been sent."
         );
     }
 
     @Transactional
     public void resetPassword(ResetPasswordRequest request) {
         String email = request.email() != null ? request.email().trim().toLowerCase() : "";
-        User user = userRepository.findByEmailIgnoreCase(email)
-                .orElseThrow(() -> new InvalidCredentialsException("USER_NOT_FOUND", "No account found with email: " + email));
+        // We still load the user explicitly to give a clear USER_NOT_FOUND error when appropriate.
+        userRepository.findByEmailIgnoreCase(email)
+                .orElseThrow(() -> new InvalidCredentialsException("USER_NOT_FOUND",
+                        "No account found with email: " + email));
 
-        ResetCodeEntry entry = resetCodes.get(email);
-        if (entry == null || entry.expiresAt().isBefore(Instant.now())) {
+        PasswordResetToken entry = passwordResetTokenRepository
+                .findTopByUser_EmailIgnoreCaseAndUsedFalseOrderByCreatedAtDesc(email)
+                .orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST, "INVALID_RESET_CODE",
+                        "Reset code has expired or was not requested. Please request a new one."));
+
+        if (entry.getExpiresAt().isBefore(Instant.now())) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_RESET_CODE",
-                    "Reset code has expired or was not requested. Please request a new one.");
+                    "Reset code has expired. Please request a new one.");
         }
 
-        if (!entry.code().equals(request.token().trim())) {
+        if (!entry.getCodeHash().equals(hash(request.token().trim()))) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_RESET_CODE",
                     "Invalid reset code. Please check and try again.");
         }
 
+        // Mark the token consumed before modifying the password (prevents replays on error).
+        entry.setUsed(true);
+        passwordResetTokenRepository.save(entry);
+
+        User user = entry.getUser();
         user.setPasswordHash(passwordEncoder.encode(request.newPassword()));
         userRepository.save(user);
 
-        // Consume reset code
-        resetCodes.remove(email);
-
-        // Revoke all existing refresh tokens
+        // Revoke all existing refresh tokens so old sessions cannot continue.
         refreshTokenRepository.findAllByUser(user).forEach(rt -> {
             rt.setRevoked(true);
             refreshTokenRepository.save(rt);

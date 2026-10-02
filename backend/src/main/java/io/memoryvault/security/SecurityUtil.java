@@ -9,8 +9,15 @@ public final class SecurityUtil {
     }
 
     public static Long currentUserId() {
-        Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-        return (Long) principal;
+        var auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !(auth.getPrincipal() instanceof Long userId)) {
+            throw new io.memoryvault.exception.ApiException(
+                    org.springframework.http.HttpStatus.UNAUTHORIZED,
+                    "UNAUTHORIZED",
+                    "Authentication required"
+            );
+        }
+        return userId;
     }
 
     public static boolean currentUserIsAdmin() {

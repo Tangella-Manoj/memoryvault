@@ -10,11 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.ZoneOffset;
 import java.time.format.TextStyle;
-import java.util.Comparator;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -28,12 +24,26 @@ public class AnalyticsService {
 
     @Transactional(readOnly = true)
     public AnalyticsResponse forUser(Long userId) {
-        List<VaultItem> items = vaultItemRepository.findByUserIdOrderBySavedAtDesc(userId, Pageable.unpaged()).getContent();
+        long totalItems = vaultItemRepository.countByUserId(userId);
+        Double rawAvg = vaultItemRepository.avgImportanceScoreByUserId(userId);
+        double avgImportance = rawAvg != null ? rawAvg : 0.0;
+        double intelligenceScore = avgImportance * 100.0;
 
-        double avgImportance = items.stream()
-                .mapToDouble(i -> i.getImportanceScore() != null ? i.getImportanceScore().doubleValue() : 0.0)
-                .average()
-                .orElse(0.0);
+        Map<String, Long> byContentType = new LinkedHashMap<>();
+        for (Object[] row : vaultItemRepository.countByContentType(userId)) {
+            if (row != null && row.length >= 2 && row[0] != null) {
+                byContentType.put(row[0].toString(), ((Number) row[1]).longValue());
+            }
+        }
+
+        Map<String, Long> byEmotionalContext = new LinkedHashMap<>();
+        for (Object[] row : vaultItemRepository.countByEmotionalContext(userId)) {
+            if (row != null && row.length >= 2 && row[0] != null) {
+                byEmotionalContext.put(row[0].toString(), ((Number) row[1]).longValue());
+            }
+        }
+
+        List<VaultItem> items = vaultItemRepository.findByUserIdOrderBySavedAtDesc(userId, Pageable.unpaged()).getContent();
 
         Map<String, Long> byDayOfWeek = items.stream()
                 .collect(Collectors.groupingBy(
@@ -41,12 +51,6 @@ public class AnalyticsService {
                         LinkedHashMap::new,
                         Collectors.counting()
                 ));
-
-        Map<String, Long> byContentType = items.stream()
-                .collect(Collectors.groupingBy(i -> i.getContentType().name(), LinkedHashMap::new, Collectors.counting()));
-
-        Map<String, Long> byEmotionalContext = items.stream()
-                .collect(Collectors.groupingBy(i -> i.getEmotionalContext().name(), LinkedHashMap::new, Collectors.counting()));
 
         Map<String, Long> tagCounts = items.stream()
                 .flatMap(i -> i.getTags().stream())
@@ -59,10 +63,8 @@ public class AnalyticsService {
                 .map(e -> new AnalyticsResponse.TagCount(e.getKey(), e.getValue()))
                 .collect(Collectors.toList());
 
-        double intelligenceScore = avgImportance * 100.0;
-
         return new AnalyticsResponse(
-                items.size(),
+                totalItems,
                 Math.round(avgImportance * 10000.0) / 10000.0,
                 Math.round(intelligenceScore * 100.0) / 100.0,
                 byDayOfWeek,
