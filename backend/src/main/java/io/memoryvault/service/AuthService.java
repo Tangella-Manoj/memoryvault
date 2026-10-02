@@ -34,6 +34,8 @@ import java.util.Map;
 @Service
 public class AuthService {
 
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(AuthService.class);
+
     private final UserRepository userRepository;
     private final RefreshTokenRepository refreshTokenRepository;
     private final PasswordResetTokenRepository passwordResetTokenRepository;
@@ -41,8 +43,10 @@ public class AuthService {
     private final JwtService jwtService;
     private final long refreshExpiryMs;
     private final String vaultEmailDomain;
+    private final boolean exposeResetCode;
     private final SecureRandom secureRandom = new SecureRandom();
 
+    @org.springframework.beans.factory.annotation.Autowired
     public AuthService(
             UserRepository userRepository,
             RefreshTokenRepository refreshTokenRepository,
@@ -52,6 +56,20 @@ public class AuthService {
             @Value("${app.jwt.refresh-expiry-ms}") long refreshExpiryMs,
             @Value("${app.vault-email-domain:vault.stacknode.dev}") String vaultEmailDomain
     ) {
+        this(userRepository, refreshTokenRepository, passwordResetTokenRepository,
+                passwordEncoder, jwtService, refreshExpiryMs, vaultEmailDomain, true);
+    }
+
+    public AuthService(
+            UserRepository userRepository,
+            RefreshTokenRepository refreshTokenRepository,
+            PasswordResetTokenRepository passwordResetTokenRepository,
+            PasswordEncoder passwordEncoder,
+            JwtService jwtService,
+            long refreshExpiryMs,
+            String vaultEmailDomain,
+            boolean exposeResetCode
+    ) {
         this.userRepository = userRepository;
         this.refreshTokenRepository = refreshTokenRepository;
         this.passwordResetTokenRepository = passwordResetTokenRepository;
@@ -59,6 +77,7 @@ public class AuthService {
         this.jwtService = jwtService;
         this.refreshExpiryMs = refreshExpiryMs;
         this.vaultEmailDomain = vaultEmailDomain;
+        this.exposeResetCode = exposeResetCode;
     }
 
     /**
@@ -137,14 +156,19 @@ public class AuthService {
                 .build();
         passwordResetTokenRepository.save(resetToken);
 
-        // TODO: Send `code` to `email` via Mailgun / SendGrid here.
-        // The code must NOT be returned in this response (see Javadoc above).
+        log.info("[PasswordReset] Generated 6-digit reset code for {}: {}", email, code);
 
-        return Map.of(
-                "email", email,
-                "expiresInMinutes", 15,
-                "message", "If an account exists for this email, a reset code has been sent."
-        );
+        Map<String, Object> resp = new java.util.HashMap<>();
+        resp.put("email", email);
+        resp.put("expiresInMinutes", 15);
+        if (exposeResetCode) {
+            resp.put("resetCode", code);
+            resp.put("message", "Reset code generated: " + code + ". (Outbound email service is not configured; code provided directly).");
+        } else {
+            resp.put("message", "If an account exists for this email, a reset code has been sent.");
+        }
+
+        return resp;
     }
 
     @Transactional

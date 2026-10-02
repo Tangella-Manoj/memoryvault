@@ -13,6 +13,7 @@ export default function ForgotPassword() {
 
   const [step, setStep] = useState(1) // 1 = Request Code, 2 = Set New Password
   const [targetEmail, setTargetEmail] = useState(initialEmail)
+  const [generatedCode, setGeneratedCode] = useState(null)
 
   const [submitting, setSubmitting] = useState(false)
   const [serverError, setServerError] = useState(null)
@@ -29,6 +30,7 @@ export default function ForgotPassword() {
     register: regStep2,
     handleSubmit: handleStep2,
     watch: watchStep2,
+    setValue: setStep2Val,
     formState: { errors: errorsStep2 },
   } = useForm()
 
@@ -44,10 +46,19 @@ export default function ForgotPassword() {
     setSubmitting(true)
     setServerError(null)
     try {
-      await api.post('/auth/forgot-password', { email: data.email.trim() })
-      setTargetEmail(data.email.trim())
+      const cleanEmail = data.email.trim()
+      const res = await api.post('/auth/forgot-password', { email: cleanEmail })
+      setTargetEmail(cleanEmail)
 
-      toast.success('Check your email for the reset code!')
+      const code = res.data?.data?.resetCode
+      if (code) {
+        setGeneratedCode(code)
+        setStep2Val('code', code)
+        toast.success(`Verification code generated: ${code}`, { duration: 6000 })
+      } else {
+        toast.success('Check your email for the reset code!')
+      }
+
       setStep(2)
     } catch (err) {
       const msg = err.response?.data?.message || 'Failed to request reset code'
@@ -158,13 +169,31 @@ export default function ForgotPassword() {
       ) : (
         /* STEP 2: Enter Code & New Password */
         <form onSubmit={handleStep2(onResetPassword)} className="space-y-4" noValidate>
-          <div className="rounded-xl border border-blue-200 bg-blue-50 p-3.5 text-xs text-blue-900 flex items-start gap-2.5">
-            <CheckCircle2 className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
-            <div>
-              <p className="font-semibold">Reset code sent!</p>
-              <p className="mt-0.5 text-xs">Check your email at <span className="font-mono font-medium">{targetEmail}</span> for a 6-digit code. It expires in 15 minutes.</p>
+          {generatedCode ? (
+            <div className="rounded-xl border border-teal-200 bg-teal-50/80 p-3.5 text-xs text-teal-900 flex items-start gap-2.5">
+              <KeyRound className="w-4 h-4 text-teal-600 shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <p className="font-semibold text-teal-950">One-Time Verification Code</p>
+                <div className="mt-1.5 flex items-center gap-2">
+                  <span className="font-mono text-base font-bold tracking-widest text-slate-900 bg-white px-2.5 py-0.5 rounded border border-teal-300 shadow-sm">
+                    {generatedCode}
+                  </span>
+                  <span className="text-[11px] text-teal-700 font-medium">✓ Auto-filled below</span>
+                </div>
+                <p className="mt-1.5 text-[11px] text-teal-800 leading-relaxed">
+                  Outbound email is not wired to an external SMTP server on this host. Your 6-digit code has been generated and pre-filled for immediate reset.
+                </p>
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="rounded-xl border border-blue-200 bg-blue-50 p-3.5 text-xs text-blue-900 flex items-start gap-2.5">
+              <CheckCircle2 className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-semibold">Reset code sent!</p>
+                <p className="mt-0.5 text-xs">Check your email at <span className="font-mono font-medium">{targetEmail}</span> for a 6-digit code. It expires in 15 minutes.</p>
+              </div>
+            </div>
+          )}
 
           <div>
             <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-1.5">

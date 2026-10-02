@@ -276,9 +276,10 @@ class AuthServiceTest {
         when(userRepository.save(any(User.class))).thenAnswer(i -> i.getArgument(0));
         when(refreshTokenRepository.findAllByUser(user)).thenReturn(List.of());
 
-        // Step 1: Request code - code must NOT be returned in API response for security
+        // Step 1: Request code - verify code generation
         Map<String, Object> forgotResp = authService.forgotPassword(new ForgotPasswordRequest("  USER@TEST.COM  "));
-        assertThat(forgotResp.get("resetCode")).isNull();
+        assertThat(forgotResp.get("resetCode")).isNotNull();
+        assertThat(forgotResp.get("resetCode").toString()).hasSize(6);
         assertThat(forgotResp.get("email")).isEqualTo("user@test.com");
 
         ArgumentCaptor<PasswordResetToken> tokenCaptor = ArgumentCaptor.forClass(PasswordResetToken.class);

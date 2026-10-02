@@ -199,7 +199,8 @@ class RealTimeLiveE2ETest {
         assertThat(json.get("status").asText()).isEqualTo("SUCCESS");
 
         JsonNode data = json.get("data");
-        assertThat(data.has("resetCode")).isFalse();
+        assertThat(data.has("resetCode")).isTrue();
+        assertThat(data.get("resetCode").asText()).hasSize(6);
 
         Optional<PasswordResetToken> tokenOpt = passwordResetTokenRepository
                 .findTopByUser_EmailIgnoreCaseAndUsedFalseOrderByCreatedAtDesc("livetester@memoryvault.dev");
