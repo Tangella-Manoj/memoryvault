@@ -134,6 +134,21 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
+    void handleNoResourceFound_returnsNotFound() {
+        org.springframework.web.servlet.resource.NoResourceFoundException ex =
+                new org.springframework.web.servlet.resource.NoResourceFoundException(
+                        org.springframework.http.HttpMethod.GET, "api/unknown-endpoint"
+                );
+
+        ResponseEntity<ApiResponse<Void>> response = handler.handleNoResourceFound(ex);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().errorCode()).isEqualTo("NOT_FOUND");
+        assertThat(response.getBody().message()).contains("Resource not found: api/unknown-endpoint");
+    }
+
+    @Test
     void handleGeneric_returnsInternalServerError() {
         Exception ex = new RuntimeException("Unexpected DB drop");
 
