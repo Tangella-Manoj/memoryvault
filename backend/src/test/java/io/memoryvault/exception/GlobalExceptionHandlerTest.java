@@ -149,6 +149,22 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
+    void handleMediaTypeNotSupported_returns415() {
+        org.springframework.web.HttpMediaTypeNotSupportedException ex =
+                new org.springframework.web.HttpMediaTypeNotSupportedException(
+                        org.springframework.http.MediaType.APPLICATION_XML,
+                        List.of(org.springframework.http.MediaType.APPLICATION_JSON)
+                );
+
+        ResponseEntity<ApiResponse<Void>> response = handler.handleMediaTypeNotSupported(ex);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNSUPPORTED_MEDIA_TYPE);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().errorCode()).isEqualTo("UNSUPPORTED_MEDIA_TYPE");
+        assertThat(response.getBody().message()).contains("Unsupported media type");
+    }
+
+    @Test
     void handleGeneric_returnsInternalServerError() {
         Exception ex = new RuntimeException("Unexpected DB drop");
 

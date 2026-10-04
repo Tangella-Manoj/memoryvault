@@ -190,6 +190,12 @@ public class VaultItemService {
         return VaultItemResponse.from(item);
     }
 
+    @Transactional
+    public void delete(Long userId, Long itemId) {
+        VaultItem item = requireOwnedItem(userId, itemId);
+        vaultItemRepository.delete(item);
+    }
+
     /**
      * Loads a vault item and enforces per-user ownership, distinguishing the two failure
      * cases the way callers actually need: an id nobody owns is {@code 404} (nothing to

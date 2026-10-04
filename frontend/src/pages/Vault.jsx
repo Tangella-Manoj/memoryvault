@@ -77,6 +77,9 @@ export default function Vault() {
             key={item.id}
             item={item}
             reason={isSearching ? searchResults.find((r) => r.item.id === item.id)?.reason : undefined}
+            onDelete={(id) => {
+              setPaged((prev) => prev ? { ...prev, content: prev.content.filter((it) => it.id !== id) } : prev)
+            }}
           />
         ))}
       </div>

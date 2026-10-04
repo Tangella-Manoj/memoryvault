@@ -246,4 +246,40 @@ class VaultItemServiceTest {
         assertThat(results.get(0).daysSinceSaved()).isEqualTo(5);
         assertThat(results.get(0).contextScore()).isEqualTo(0.88);
     }
+
+    @Test
+    void delete_ownedItem_deletesSuccessfully() {
+        User user = User.builder().id(1L).build();
+        VaultItem item = VaultItem.builder().id(10L).user(user).build();
+
+        when(vaultItemRepository.findById(10L)).thenReturn(Optional.of(item));
+
+        vaultItemService.delete(1L, 10L);
+
+        verify(vaultItemRepository).delete(item);
+    }
+
+    @Test
+    void delete_nonOwnedItem_throwsForbidden() {
+        User owner = User.builder().id(1L).build();
+        VaultItem item = VaultItem.builder().id(10L).user(owner).build();
+
+        when(vaultItemRepository.findById(10L)).thenReturn(Optional.of(item));
+
+        assertThatThrownBy(() -> vaultItemService.delete(2L, 10L))
+                .isInstanceOf(ApiException.class)
+                .matches(e -> ((ApiException) e).getStatus() == HttpStatus.FORBIDDEN);
+
+        verify(vaultItemRepository, never()).delete(any(VaultItem.class));
+    }
+
+    @Test
+    void delete_nonExistentItem_throwsNotFound() {
+        when(vaultItemRepository.findById(999L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> vaultItemService.delete(1L, 999L))
+                .isInstanceOf(ResourceNotFoundException.class);
+
+        verify(vaultItemRepository, never()).delete(any(VaultItem.class));
+    }
 }

@@ -76,4 +76,11 @@ public class VaultItemController {
         Long userId = SecurityUtil.currentUserId();
         return ApiResponse.success(vaultItemService.forgottenGems(userId), "Forgotten gems");
     }
+
+    @DeleteMapping("/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void delete(@PathVariable Long id) {
+        Long userId = SecurityUtil.currentUserId();
+        vaultItemService.delete(userId, id);
+    }
 }

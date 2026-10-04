@@ -1,4 +1,6 @@
-import { ExternalLink } from 'lucide-react'
+import { ExternalLink, Trash2 } from 'lucide-react'
+import toast from 'react-hot-toast'
+import api from '../../lib/api'
 
 const CONTENT_TYPE_COLORS = {
   ARTICLE: 'bg-blue-50 text-blue-700',
@@ -12,27 +14,50 @@ const CONTENT_TYPE_COLORS = {
   OTHER: 'bg-slate-100 text-slate-600',
 }
 
-export default function ItemCard({ item, reason }) {
+export default function ItemCard({ item, reason, onDelete }) {
   const badgeClass = CONTENT_TYPE_COLORS[item.contentType] ?? CONTENT_TYPE_COLORS.OTHER
+
+  async function handleDelete(e) {
+    e.preventDefault()
+    e.stopPropagation()
+    if (!window.confirm('Delete this item from your vault?')) return
+    try {
+      await api.delete(`/vault/${item.id}`)
+      toast.success('Item removed from vault')
+      onDelete?.(item.id)
+    } catch {
+      toast.error('Failed to delete item')
+    }
+  }
 
   return (
     <a
       href={item.url}
       target="_blank"
       rel="noreferrer"
-      className="block bg-white border border-slate-200 rounded-lg overflow-hidden hover:shadow-md transition-shadow"
+      className="block bg-white border border-slate-200 rounded-lg overflow-hidden hover:shadow-md transition-shadow group"
     >
       {item.ogImageUrl && (
         <img src={item.ogImageUrl} alt="" className="w-full h-36 object-cover" />
       )}
       <div className="p-4">
-        <div className="flex items-center gap-2 mb-2">
-          <span className={`text-xs font-medium px-2 py-0.5 rounded ${badgeClass}`}>
-            {item.contentType}
-          </span>
-          {item.status === 'PROCESSING' && (
-            <span className="text-xs text-slate-400">Processing…</span>
-          )}
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-2">
+            <span className={`text-xs font-medium px-2 py-0.5 rounded ${badgeClass}`}>
+              {item.contentType}
+            </span>
+            {item.status === 'PROCESSING' && (
+              <span className="text-xs text-slate-400">Processing…</span>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={handleDelete}
+            title="Delete item"
+            className="text-slate-300 hover:text-red-500 transition-colors p-1 rounded hover:bg-red-50 cursor-pointer"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
         </div>
         <h3 className="font-medium text-slate-900 line-clamp-2 flex items-start gap-1">
           {item.title ?? item.url}
