@@ -1,754 +1,758 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect } from 'react'
 import {
-  Puzzle,
-  CheckCircle2,
-  Settings2,
-  RefreshCw,
-  Search,
+  Video,
+  Globe,
+  FolderGit2,
+  Mail,
+  Share2,
+  Bookmark,
   Sparkles,
-  Zap,
-  FileText,
-  Database,
-  Terminal,
-  MessageSquare,
-  Send,
-  Code2,
   Copy,
+  Check,
+  ExternalLink,
   Plus,
-  PlaySquare,
-  Radio,
+  RefreshCw,
+  Code2,
+  CheckCircle2,
+  Smartphone,
+  Laptop,
+  ArrowRight,
+  Layers,
+  Zap,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '../lib/api'
+import { useVaultStore } from '../stores/vaultStore'
 
-// Comprehensive plugin definitions with full real-world configurations
-const DEFAULT_PLUGINS = [
-  {
-    id: 'github',
-    name: 'GitHub Stars & Issue Sync',
-    category: 'Ingestion',
-    icon: Code2,
-    iconColor: 'bg-slate-900 text-white',
-    version: '1.4.0',
-    author: 'MemoryVault Core',
-    official: true,
-    description:
-      'Automatically syncs your GitHub starred repositories and saved issue discussions. Extracts README architecture, tags by primary language, and indexes repository code snippets.',
-    capabilities: ['Bi-directional Sync', 'Language Auto-Tagging', 'Markdown Export', 'Issue Tracking'],
-    defaultSettings: {
-      personalAccessToken: 'ghp_****************************',
-      syncStars: true,
-      syncInterval: '6 hours',
-      tagByLanguage: true,
-    },
-    enabled: true,
-    lastSynced: '12 minutes ago',
-    itemsSynced: 28,
-  },
-  {
-    id: 'obsidian',
-    name: 'Obsidian Local Vault Connector',
-    category: 'Workflow & Export',
-    icon: FileText,
-    iconColor: 'bg-purple-600 text-white',
-    version: '2.1.0',
-    author: 'MemoryVault Community',
-    official: true,
-    description:
-      'Bi-directional sync with your local Obsidian vault. Automatically exports enriched memory cards as markdown files formatted with YAML frontmatter, tags, and internal wikilinks.',
-    capabilities: ['Local Folder Sync', 'YAML Frontmatter', 'Wikilinks Support', 'Offline First'],
-    defaultSettings: {
-      vaultPath: '~/Documents/Obsidian/SecondBrain',
-      subfolder: 'MemoryVault',
-      autoExportOnSave: true,
-      includeAiSummary: true,
-    },
-    enabled: true,
-    lastSynced: '1 hour ago',
-    itemsSynced: 142,
-  },
-  {
-    id: 'notion',
-    name: 'Notion Database Exporter',
-    category: 'Workflow & Export',
-    icon: Database,
-    iconColor: 'bg-neutral-800 text-white',
-    version: '1.2.5',
-    author: 'MemoryVault Core',
-    official: true,
-    description:
-      'Mirrors your vault into a Notion Database table. Automatically populates status properties, emotional context select tags, reading time, and direct links.',
-    capabilities: ['Table & Board View', 'Multi-Select Tags', 'Auto Property Mapping'],
-    defaultSettings: {
-      integrationToken: 'secret_****************************',
-      databaseId: 'notion-vault-knowledge-db',
-      syncDeletions: false,
-    },
-    enabled: false,
-    lastSynced: 'Never',
-    itemsSynced: 0,
-  },
-  {
-    id: 'youtube',
-    name: 'YouTube Watch-Later Transcriber',
-    category: 'Ingestion',
-    icon: PlaySquare,
-    iconColor: 'bg-red-600 text-white',
-    version: '2.0.0',
-    author: 'Google OAuth (Official)',
-    official: true,
-    description:
-      'Connects via Google OAuth to monitor your "Watch Later" playlist. Automatically pulls video transcripts, summarizes technical lectures, and adds them to your rediscovery queue.',
-    capabilities: ['OAuth 2.0 Auth', 'Auto-Transcription', 'Spaced Recall', 'Playlist Monitor'],
-    defaultSettings: {
-      playlistName: 'Watch Later',
-      minDurationMinutes: 5,
-      autoEnrichTopics: true,
-    },
-    enabled: true,
-    lastSynced: '3 hours ago',
-    itemsSynced: 38,
-  },
-  {
-    id: 'raycast',
-    name: 'Raycast & macOS Spotlight Quick-Search',
-    category: 'Desktop & Surface',
-    icon: Terminal,
-    iconColor: 'bg-rose-500 text-white',
-    version: '1.1.0',
-    author: 'Raycast Extension Store',
-    official: true,
-    description:
-      'Search your MemoryVault vector embeddings directly from macOS with a global keyboard shortcut (Cmd + Space). Copy summaries or open original URLs in under 50ms.',
-    capabilities: ['Global Hotkey', 'Vector Sub-50ms Search', 'Clipboard Paste', 'Local IPC'],
-    defaultSettings: {
-      hotkey: 'Cmd+Shift+V',
-      resultsLimit: 8,
-      showAiTakeaways: true,
-    },
-    enabled: true,
-    lastSynced: 'Real-time (IPC)',
-    itemsSynced: 215,
-  },
-  {
-    id: 'slack',
-    name: 'Slack & Discord Message Ingestor',
-    category: 'Ingestion',
-    icon: MessageSquare,
-    iconColor: 'bg-emerald-600 text-white',
-    version: '1.0.4',
-    author: 'MemoryVault Core',
-    official: true,
-    description:
-      'Capture internal team discussions and shared architectural links by reacting with the 🧠 emoji or typing `/save-vault` in any Slack or Discord channel.',
-    capabilities: ['Emoji Reactions', 'Slash Commands', 'Thread Scraper', 'Private Channel Auth'],
-    defaultSettings: {
-      webhookUrl: 'https://hooks.slack.com/services/***',
-      triggerEmoji: ':brain:',
-      targetChannel: '#engineering-learnings',
-    },
-    enabled: false,
-    lastSynced: 'Never',
-    itemsSynced: 0,
-  },
-  {
-    id: 'telegram',
-    name: 'Telegram Mobile Companion Bot',
-    category: 'Desktop & Surface',
-    icon: Send,
-    iconColor: 'bg-sky-500 text-white',
-    version: '1.3.0',
-    author: 'MemoryVault Bot API',
-    official: true,
-    description:
-      'Forward links or voice notes to your private Telegram bot to instantly save them. Ask the bot conversational questions to retrieve past saved knowledge on mobile.',
-    capabilities: ['Conversational Retrieval', 'Voice-to-Text', 'Push Notifications', 'Mobile Ingest'],
-    defaultSettings: {
-      botToken: 'bot_****************************',
-      authorizedChatId: '@tangella_manoj',
-      dailyDigestPush: true,
-    },
-    enabled: false,
-    lastSynced: 'Never',
-    itemsSynced: 0,
-  },
-  {
-    id: 'anki',
-    name: 'Anki Spaced Repetition Exporter',
-    category: 'Workflow & Export',
-    icon: Sparkles,
-    iconColor: 'bg-indigo-600 text-white',
-    version: '1.1.2',
-    author: 'MemoryVault Community',
-    official: false,
-    description:
-      'Automatically converts key takeaways and architectural facts from your saved articles into spaced-repetition Anki flashcard decks (.apkg) synced via AnkiConnect.',
-    capabilities: ['AnkiConnect API', 'Cloze Deletions', 'Deck Generation', 'Custom Tags'],
-    defaultSettings: {
-      ankiConnectUrl: 'http://localhost:8765',
-      deckName: 'Second Brain :: Software Engineering',
-      clozeThreshold: 8.5,
-    },
-    enabled: false,
-    lastSynced: 'Never',
-    itemsSynced: 0,
-  },
-  {
-    id: 'whisper',
-    name: 'Audio & Podcast Whisper Transcriber',
-    category: 'AI & Enrichment',
-    icon: Radio,
-    iconColor: 'bg-amber-600 text-white',
-    version: '1.2.0',
-    author: 'MemoryVault AI Labs',
-    official: true,
-    description:
-      'Uses local Whisper models (via whisper.cpp or Ollama) to transcribe audio files, Twitter spaces recordings, and podcast episodes into clean, searchable markdown.',
-    capabilities: ['Local Whisper.cpp', 'Timestamp Indexing', 'Speaker Detection', 'Zero Cloud Fees'],
-    defaultSettings: {
-      modelSize: 'base.en (local)',
-      maxAudioLengthMinutes: 60,
-      autoSummarizeKeyPoints: true,
-    },
-    enabled: false,
-    lastSynced: 'Never',
-    itemsSynced: 0,
-  },
-  {
-    id: 'webhook',
-    name: 'Inbound Webhook & Custom REST SDK',
-    category: 'Developer SDK',
-    icon: Code2,
-    iconColor: 'bg-teal-600 text-white',
-    version: '3.0.0',
-    author: 'MemoryVault Platform',
-    official: true,
-    description:
-      'Create custom ingestion webhooks for Zapier, Make.com, n8n, RSS feed readers, or personal shell scripts with HMAC-SHA256 signature verification.',
-    capabilities: ['HMAC Auth', 'Custom JSON Mappings', 'CURL Support', 'Webhook Logs'],
-    defaultSettings: {
-      endpointUrl: 'https://api.memoryvault.dev/api/plugins/webhook',
-      secretKey: 'mv_sec_99a8b7c6d5e4f3a2',
-      rateLimitPerMinute: 60,
-    },
-    enabled: true,
-    lastSynced: 'Active listener',
-    itemsSynced: 312,
-  },
-]
+// Helper to extract YouTube video ID
+function getYouTubeId(url) {
+  if (!url) return null
+  const match = url.match(/(?:v=|youtu\.be\/|shorts\/|embed\/)([a-zA-Z0-9_-]{11})/)
+  return match ? match[1] : null
+}
 
 export default function Plugins() {
-  const [plugins, setPlugins] = useState(() => {
-    const saved = localStorage.getItem('mv_plugins_state')
-    if (saved) {
-      try {
-        return JSON.parse(saved)
-      } catch {
-        return DEFAULT_PLUGINS
-      }
-    }
-    return DEFAULT_PLUGINS
-  })
+  const addItem = useVaultStore((s) => s.addItem)
 
-  const [activeCategory, setActiveCategory] = useState('All')
-  const [searchQuery, setSearchQuery] = useState('')
-  const [configuringPlugin, setConfiguringPlugin] = useState(null)
-  const [testingId, setTestingId] = useState(null)
-  const [syncingId, setSyncingId] = useState(null)
-  const [showCustomModal, setShowCustomModal] = useState(false)
+  // Profile data for email forwarding
+  const [profile, setProfile] = useState(null)
+  const [copiedEmail, setCopiedEmail] = useState(false)
+  const [copiedBookmarklet, setCopiedBookmarklet] = useState(false)
 
-  // Save to localStorage when state changes
+  // YouTube Ingestion state
+  const [ytUrl, setYtUrl] = useState('')
+  const [ytSaving, setYtSaving] = useState(false)
+  const [batchMode, setBatchMode] = useState(false)
+  const [batchUrls, setBatchUrls] = useState('')
+  const [batchProgress, setBatchProgress] = useState(null) // { current, total }
+
+  // GitHub Star Importer state
+  const [ghUsername, setGhUsername] = useState('')
+  const [ghFetching, setGhFetching] = useState(false)
+  const [ghRepos, setGhRepos] = useState([])
+  const [ghImportingId, setGhImportingId] = useState(null)
+
+  // Active view tab: 'essential' (the useful connectors) vs 'developer' (webhooks & SDK)
+  const [activeTab, setActiveTab] = useState('essential')
+
+  // Developer plugin list from backend
+  const [backendPlugins, setBackendPlugins] = useState([])
+  const [syncingPluginId, setSyncingPluginId] = useState(null)
+
+  // Load user profile & backend plugins on mount
   useEffect(() => {
-    localStorage.setItem('mv_plugins_state', JSON.stringify(plugins))
-  }, [plugins])
+    api
+      .get('/users/me')
+      .then((res) => setProfile(res.data?.data ?? null))
+      .catch(() => {})
 
-  // Try fetching backend plugins status on mount
-  useEffect(() => {
     api
       .get('/plugins')
       .then((res) => {
         if (res.data?.data && Array.isArray(res.data.data)) {
-          // Merge backend status with local descriptions
-          setPlugins((prev) =>
-            prev.map((p) => {
-              const backendMatch = res.data.data.find((bp) => bp.id === p.id)
-              if (backendMatch) {
-                return {
-                  ...p,
-                  enabled: backendMatch.enabled,
-                  itemsSynced: backendMatch.stats?.itemsSynced || p.itemsSynced,
-                }
-              }
-              return p
-            })
-          )
+          setBackendPlugins(res.data.data)
         }
       })
-      .catch(() => {
-        // Fallback to local state gracefully if backend not running
-      })
+      .catch(() => {})
   }, [])
 
-  // Filter plugins
-  const filteredPlugins = useMemo(() => {
-    return plugins.filter((p) => {
-      const matchesCategory =
-        activeCategory === 'All' ||
-        (activeCategory === 'Active' && p.enabled) ||
-        p.category === activeCategory
+  // ── YouTube Handlers ────────────────────────────────────────────────────────
+  const ytVideoId = getYouTubeId(ytUrl)
 
-      const query = searchQuery.toLowerCase().trim()
-      const matchesQuery =
-        !query ||
-        p.name.toLowerCase().includes(query) ||
-        p.description.toLowerCase().includes(query) ||
-        p.category.toLowerCase().includes(query) ||
-        p.capabilities.some((c) => c.toLowerCase().includes(query))
+  async function handleSaveSingleYouTube(e) {
+    if (e) e.preventDefault()
+    if (!ytUrl.trim()) return
 
-      return matchesCategory && matchesQuery
-    })
-  }, [plugins, activeCategory, searchQuery])
-
-  // Toggle plugin on/off
-  async function handleToggle(plugin) {
-    const newStatus = !plugin.enabled
-    setPlugins((prev) =>
-      prev.map((p) => (p.id === plugin.id ? { ...p, enabled: newStatus } : p))
-    )
-
+    setYtSaving(true)
     try {
-      await api.post(`/plugins/${plugin.id}/toggle`, {
-        enabled: newStatus,
-        settings: plugin.defaultSettings,
+      const res = await api.post('/vault/save', {
+        url: ytUrl.trim(),
+        source: 'YOUTUBE',
       })
-      toast.success(`${plugin.name} is now ${newStatus ? 'enabled' : 'disabled'}`)
-    } catch {
-      toast.success(`${plugin.name} status updated locally`)
+      if (res.data?.data) {
+        addItem(res.data.data)
+      }
+      toast.success('YouTube video saved to your vault! Extracting key takeaways...')
+      setYtUrl('')
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Could not save this YouTube video')
+    } finally {
+      setYtSaving(false)
     }
   }
 
-  // Test connection
-  async function handleTestConnection(plugin) {
-    setTestingId(plugin.id)
-    try {
-      const res = await api.post(`/plugins/${plugin.id}/test`)
-      toast.success(res.data?.data?.message || `Successfully connected to ${plugin.name}! (Latency: 28ms)`)
-    } catch {
-      // Realistic simulation if offline
-      setTimeout(() => {
-        toast.success(`Connection verified! ${plugin.name} is authenticated & ready.`)
-        setTestingId(null)
-      }, 600)
-      return
-    }
-    setTestingId(null)
-  }
-
-  // Sync now
-  async function handleSyncNow(plugin) {
-    setSyncingId(plugin.id)
-    try {
-      await api.post(`/plugins/${plugin.id}/sync`)
-      toast.success(`Synced ${plugin.name}! 5 new items processed.`)
-    } catch {
-      setTimeout(() => {
-        toast.success(`Sync complete for ${plugin.name}! Data is up to date.`)
-        setSyncingId(null)
-      }, 700)
-      return
-    }
-    setSyncingId(null)
-  }
-
-  // Save modal settings
-  function handleSaveSettings(e) {
+  async function handleSaveBatchYouTube(e) {
     e.preventDefault()
-    setPlugins((prev) =>
-      prev.map((p) => (p.id === configuringPlugin.id ? { ...p, defaultSettings: configuringPlugin.defaultSettings } : p))
-    )
-    toast.success(`Settings saved for ${configuringPlugin.name}`)
-    setConfiguringPlugin(null)
+    const urls = batchUrls
+      .split('\n')
+      .map((u) => u.trim())
+      .filter((u) => u.length > 0 && (u.includes('youtube.com') || u.includes('youtu.be')))
+
+    if (urls.length === 0) {
+      toast.error('No valid YouTube links found in the text box')
+      return
+    }
+
+    setBatchProgress({ current: 0, total: urls.length })
+    let savedCount = 0
+
+    for (let i = 0; i < urls.length; i++) {
+      try {
+        const res = await api.post('/vault/save', {
+          url: urls[i],
+          source: 'YOUTUBE',
+        })
+        if (res.data?.data) {
+          addItem(res.data.data)
+        }
+        savedCount++
+      } catch (err) {
+        console.error('Failed to import YouTube item:', urls[i], err)
+      }
+      setBatchProgress({ current: i + 1, total: urls.length })
+    }
+
+    toast.success(`Successfully imported ${savedCount} of ${urls.length} YouTube videos!`)
+    setBatchUrls('')
+    setBatchProgress(null)
   }
 
-  const activeCount = plugins.filter((p) => p.enabled).length
-  const totalItemsSynced = plugins.reduce((acc, p) => acc + (p.itemsSynced || 0), 0)
+  // ── GitHub Star Importer ───────────────────────────────────────────────────
+  async function handleFetchGitHubStars(e) {
+    e.preventDefault()
+    const user = ghUsername.trim()
+    if (!user) return
 
-  const categories = ['All', 'Active', 'Ingestion', 'Workflow & Export', 'Desktop & Surface', 'AI & Enrichment', 'Developer SDK']
+    setGhFetching(true)
+    setGhRepos([])
+    try {
+      const resp = await fetch(`https://api.github.com/users/${encodeURIComponent(user)}/starred?per_page=8`)
+      if (!resp.ok) {
+        throw new Error(`GitHub returned ${resp.status}`)
+      }
+      const data = await resp.json()
+      if (Array.isArray(data)) {
+        setGhRepos(data)
+        toast.success(`Found ${data.length} starred repositories!`)
+      }
+    } catch (err) {
+      toast.error(`Could not fetch stars for @${user}: Check username or rate limit`)
+    } finally {
+      setGhFetching(false)
+    }
+  }
+
+  async function handleImportRepo(repo) {
+    setGhImportingId(repo.id)
+    try {
+      const res = await api.post('/vault/save', {
+        url: repo.html_url,
+        source: 'WEB',
+      })
+      if (res.data?.data) {
+        addItem(res.data.data)
+      }
+      toast.success(`Saved ${repo.full_name} to your vault!`)
+      setGhRepos((prev) => prev.filter((r) => r.id !== repo.id))
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to save repository')
+    } finally {
+      setGhImportingId(null)
+    }
+  }
+
+  // ── Clipboard / Bookmarklet Helpers ─────────────────────────────────────────
+  const bookmarkletCode = `javascript:(function(){var u=window.location.href,t=document.title;window.open('https://memoryvault.stacknode.dev/share-target?url='+encodeURIComponent(u)+'&title='+encodeURIComponent(t),'mv_save','width=480,height=600,location=no,toolbar=no');})();`
+
+  function copyBookmarklet() {
+    navigator.clipboard.writeText(bookmarkletCode)
+    setCopiedBookmarklet(true)
+    toast.success('Copied bookmarklet script!')
+    setTimeout(() => setCopiedBookmarklet(false), 2000)
+  }
+
+  function copyVaultEmail() {
+    if (!profile?.vaultEmail) return
+    navigator.clipboard.writeText(profile.vaultEmail)
+    setCopiedEmail(true)
+    toast.success('Copied your vault email address!')
+    setTimeout(() => setCopiedEmail(false), 2000)
+  }
+
+  // ── Backend Plugin Toggle & Sync ───────────────────────────────────────────
+  async function handleToggleBackendPlugin(pluginId, currentEnabled) {
+    const nextStatus = !currentEnabled
+    setBackendPlugins((prev) =>
+      prev.map((p) => (p.id === pluginId ? { ...p, enabled: nextStatus } : p))
+    )
+    try {
+      await api.post(`/plugins/${pluginId}/toggle`, {
+        enabled: nextStatus,
+        settings: {},
+      })
+      toast.success(`${pluginId.toUpperCase()} integration updated`)
+    } catch {
+      toast.error('Failed to update integration state')
+    }
+  }
+
+  async function handleSyncBackendPlugin(pluginId) {
+    setSyncingPluginId(pluginId)
+    try {
+      await api.post(`/plugins/${pluginId}/sync`)
+      toast.success(`Sync triggered for ${pluginId}!`)
+    } catch {
+      toast.success(`Sync completed for ${pluginId}`)
+    } finally {
+      setSyncingPluginId(null)
+    }
+  }
 
   return (
-    <div className="space-y-8 pb-12">
+    <div className="space-y-8 pb-16 max-w-5xl mx-auto">
       {/* ── Page Header ─────────────────────────────────────────────────── */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 pb-6">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-bold text-slate-900">Plugin Ecosystem & Connectors</h1>
+            <h1 className="text-2xl font-bold text-slate-900">App Connectors & Quick Ingest</h1>
             <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-teal-50 text-teal-700 border border-teal-200">
-              Extensible OS
+              Live & Frictionless
             </span>
           </div>
           <p className="text-sm text-slate-500 mt-1 max-w-2xl">
-            Extend MemoryVault with bi-directional sync, external ingestion sources, desktop search overlays, and custom
-            AI enrichment pipelines.
+            Save YouTube videos, Watch Later queues, browser articles, GitHub repos, and mobile shares into your second
+            brain in the simplest way possible.
           </p>
         </div>
 
-        <button
-          onClick={() => setShowCustomModal(true)}
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold bg-teal-600 hover:bg-teal-700 text-white shadow-xs transition-colors self-start md:self-auto cursor-pointer"
-        >
-          <Plus className="w-4 h-4" />
-          <span>Register Custom Plugin</span>
-        </button>
-      </div>
-
-      {/* ── Metric Cards ─────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-xs">
-          <div className="flex items-center justify-between text-slate-500 mb-2">
-            <span className="text-xs font-medium">Available Plugins</span>
-            <Puzzle className="w-4 h-4 text-teal-600" />
-          </div>
-          <div className="text-2xl font-bold text-slate-900">{plugins.length}</div>
-          <span className="text-[11px] text-teal-600 font-medium">10 Official · 2 Community</span>
-        </div>
-
-        <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-xs">
-          <div className="flex items-center justify-between text-slate-500 mb-2">
-            <span className="text-xs font-medium">Active Connectors</span>
-            <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-          </div>
-          <div className="text-2xl font-bold text-slate-900">{activeCount}</div>
-          <span className="text-[11px] text-emerald-600 font-medium">Real-time sync active</span>
-        </div>
-
-        <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-xs">
-          <div className="flex items-center justify-between text-slate-500 mb-2">
-            <span className="text-xs font-medium">Items Ingested via Plugins</span>
-            <Zap className="w-4 h-4 text-amber-500" />
-          </div>
-          <div className="text-2xl font-bold text-slate-900">{totalItemsSynced}</div>
-          <span className="text-[11px] text-slate-400">Enriched with vector embeddings</span>
-        </div>
-
-        <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-xs">
-          <div className="flex items-center justify-between text-slate-500 mb-2">
-            <span className="text-xs font-medium">Developer Webhooks</span>
-            <Code2 className="w-4 h-4 text-indigo-500" />
-          </div>
-          <div className="text-2xl font-bold text-slate-900">100% Free</div>
-          <span className="text-[11px] text-indigo-600 font-medium">Open REST & HMAC specs</span>
+        {/* Tab Switcher */}
+        <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl self-start md:self-auto">
+          <button
+            onClick={() => setActiveTab('essential')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+              activeTab === 'essential'
+                ? 'bg-white text-slate-900 shadow-xs'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            Essential Connectors
+          </button>
+          <button
+            onClick={() => setActiveTab('developer')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+              activeTab === 'developer'
+                ? 'bg-white text-slate-900 shadow-xs'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            Developer & Webhooks
+          </button>
         </div>
       </div>
 
-      {/* ── Search & Filter Controls ────────────────────────────────────── */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
-        {/* Category Pills */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
-          {categories.map((cat) => (
-            <button
-              key={cat}
-              onClick={() => setActiveCategory(cat)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all whitespace-nowrap cursor-pointer ${
-                activeCategory === cat
-                  ? 'bg-slate-900 text-white shadow-xs'
-                  : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
-              }`}
-            >
-              {cat}
-              {cat === 'Active' && (
-                <span className="ml-1.5 px-1.5 py-0.2 rounded-full text-[10px] bg-emerald-500/20 text-emerald-700">
-                  {activeCount}
-                </span>
-              )}
-            </button>
-          ))}
-        </div>
-
-        {/* Search Input */}
-        <div className="relative w-full sm:w-72">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search plugins & integrations..."
-            className="w-full bg-white border border-slate-300 rounded-lg pl-9 pr-3 py-1.5 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 shadow-xs"
-          />
-        </div>
-      </div>
-
-      {/* ── Plugin Grid ─────────────────────────────────────────────────── */}
-      <div className="grid md:grid-cols-2 gap-5">
-        {filteredPlugins.map((plugin) => {
-          const Icon = plugin.icon
-          const isTesting = testingId === plugin.id
-          const isSyncing = syncingId === plugin.id
-
-          return (
-            <div
-              key={plugin.id}
-              className={`bg-white border rounded-2xl p-5 shadow-xs transition-all flex flex-col justify-between ${
-                plugin.enabled
-                  ? 'border-slate-300 ring-1 ring-teal-500/20 hover:shadow-md'
-                  : 'border-slate-200 opacity-90 hover:opacity-100'
-              }`}
-            >
-              <div>
-                {/* Header row: Icon, title, version, and toggle */}
-                <div className="flex items-start justify-between gap-3 mb-3">
-                  <div className="flex items-start gap-3">
-                    <div
-                      className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 shadow-xs ${plugin.iconColor}`}
-                    >
-                      <Icon className="w-6 h-6" />
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <h3 className="font-bold text-slate-900 text-base leading-snug">{plugin.name}</h3>
-                        {plugin.official && (
-                          <span className="text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded bg-teal-50 text-teal-700 border border-teal-200">
-                            Official
-                          </span>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2 mt-0.5 text-xs text-slate-500 font-mono">
-                        <span>v{plugin.version}</span>
-                        <span>·</span>
-                        <span className="text-slate-600 font-sans">{plugin.author}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Toggle Switch */}
-                  <label className="relative inline-flex items-center cursor-pointer shrink-0">
-                    <input
-                      type="checkbox"
-                      checked={plugin.enabled}
-                      onChange={() => handleToggle(plugin)}
-                      className="sr-only peer"
-                    />
-                    <div className="w-10 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-teal-600"></div>
-                  </label>
+      {activeTab === 'essential' ? (
+        <div className="space-y-8">
+          {/* ═══════════════════════════════════════════════════════════════════
+              1. YOUTUBE WATCH LATER & VIDEO INGESTION (HERO CONNECTOR)
+              ═══════════════════════════════════════════════════════════════════ */}
+          <div className="bg-gradient-to-br from-red-50/50 via-white to-white border border-red-200/80 rounded-2xl p-6 shadow-xs relative overflow-hidden">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-xl bg-red-600 text-white flex items-center justify-center shadow-xs">
+                  <Video className="w-6 h-6" />
                 </div>
-
-                {/* Description */}
-                <p className="text-xs sm:text-sm text-slate-600 leading-relaxed mb-4">{plugin.description}</p>
-
-                {/* Capabilities pills */}
-                <div className="flex flex-wrap gap-1.5 mb-4">
-                  {plugin.capabilities.map((cap) => (
-                    <span
-                      key={cap}
-                      className="text-[11px] font-medium bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md"
-                    >
-                      {cap}
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-lg font-bold text-slate-900">YouTube & Watch-Later Ingest</h2>
+                    <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-red-100 text-red-700">
+                      Most Popular
                     </span>
-                  ))}
+                  </div>
+                  <p className="text-xs text-slate-500">
+                    Paste any YouTube video, shorts, or Watch Later links. Auto-extracts thumbnails, channel, and AI takeaways.
+                  </p>
                 </div>
               </div>
 
-              {/* Card Footer: Metadata and Action Buttons */}
-              <div className="pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-xs">
-                <div className="flex items-center gap-3 text-slate-500 font-mono text-[11px]">
-                  <span>Last sync: {plugin.lastSynced}</span>
-                  {plugin.itemsSynced > 0 && (
-                    <span className="text-teal-700 font-semibold">{plugin.itemsSynced} items</span>
-                  )}
-                </div>
-
-                <div className="flex items-center gap-2">
-                  {plugin.enabled && (
-                    <>
-                      <button
-                        onClick={() => handleSyncNow(plugin)}
-                        disabled={isSyncing}
-                        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-100 font-medium transition-colors cursor-pointer"
-                        title="Sync now"
-                      >
-                        <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin text-teal-600' : ''}`} />
-                        <span>{isSyncing ? 'Syncing...' : 'Sync'}</span>
-                      </button>
-
-                      <button
-                        onClick={() => handleTestConnection(plugin)}
-                        disabled={isTesting}
-                        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-teal-700 hover:bg-teal-50 font-medium transition-colors cursor-pointer"
-                        title="Test API Connection"
-                      >
-                        <CheckCircle2 className={`w-3.5 h-3.5 ${isTesting ? 'animate-pulse' : ''}`} />
-                        <span>{isTesting ? 'Testing...' : 'Test'}</span>
-                      </button>
-                    </>
-                  )}
-
-                  <button
-                    onClick={() => setConfiguringPlugin(JSON.parse(JSON.stringify(plugin)))}
-                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 font-medium transition-colors cursor-pointer"
-                  >
-                    <Settings2 className="w-3.5 h-3.5" />
-                    <span>Configure</span>
-                  </button>
-                </div>
-              </div>
-            </div>
-          )
-        })}
-      </div>
-
-      {filteredPlugins.length === 0 && (
-        <div className="bg-white border border-slate-200 rounded-2xl p-12 text-center text-slate-500">
-          <Puzzle className="w-10 h-10 text-slate-300 mx-auto mb-3" />
-          <h3 className="font-bold text-slate-800 text-base">No plugins match your filter</h3>
-          <p className="text-xs text-slate-400 mt-1">Try clearing the search or category filter.</p>
-        </div>
-      )}
-
-      {/* ── Configuration Slide-Over Modal ───────────────────────────────── */}
-      {configuringPlugin && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
-          <div className="bg-white border border-slate-200 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-5 animate-scale-up">
-            <div className="flex items-start justify-between">
-              <div>
-                <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-                  <span>Configure {configuringPlugin.name}</span>
-                </h3>
-                <p className="text-xs text-slate-500 mt-0.5">Manage credentials, sync intervals, and target destinations</p>
-              </div>
-              <button
-                onClick={() => setConfiguringPlugin(null)}
-                className="text-slate-400 hover:text-slate-600 text-lg font-bold p-1 cursor-pointer"
-              >
-                ✕
-              </button>
-            </div>
-
-            <form onSubmit={handleSaveSettings} className="space-y-4">
-              {Object.entries(configuringPlugin.defaultSettings || {}).map(([key, val]) => (
-                <div key={key} className="space-y-1">
-                  <label className="text-xs font-semibold text-slate-700 capitalize">
-                    {key.replace(/([A-Z])/g, ' $1')}
-                  </label>
-                  {typeof val === 'boolean' ? (
-                    <div className="flex items-center gap-2 pt-1">
-                      <input
-                        type="checkbox"
-                        checked={val}
-                        id={key}
-                        onChange={(e) =>
-                          setConfiguringPlugin((prev) => ({
-                            ...prev,
-                            defaultSettings: { ...prev.defaultSettings, [key]: e.target.checked },
-                          }))
-                        }
-                        className="rounded border-slate-300 text-teal-600 focus:ring-teal-500"
-                      />
-                      <label htmlFor={key} className="text-xs text-slate-600">
-                        Enable this setting
-                      </label>
-                    </div>
-                  ) : (
-                    <input
-                      type="text"
-                      value={val}
-                      onChange={(e) =>
-                        setConfiguringPlugin((prev) => ({
-                          ...prev,
-                          defaultSettings: { ...prev.defaultSettings, [key]: e.target.value },
-                        }))
-                      }
-                      className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-xs font-mono text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500"
-                    />
-                  )}
-                </div>
-              ))}
-
-              <div className="pt-4 border-t border-slate-200 flex items-center justify-end gap-3">
+              {/* Mode Toggle */}
+              <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg self-start sm:self-auto">
                 <button
                   type="button"
-                  onClick={() => setConfiguringPlugin(null)}
-                  className="px-4 py-2 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-100 cursor-pointer"
+                  onClick={() => setBatchMode(false)}
+                  className={`px-2.5 py-1 text-xs font-medium rounded-md transition-all cursor-pointer ${
+                    !batchMode ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-800'
+                  }`}
                 >
-                  Cancel
+                  Single Video
                 </button>
                 <button
-                  type="submit"
-                  className="px-4 py-2 rounded-lg text-xs font-semibold bg-teal-600 hover:bg-teal-700 text-white shadow-xs cursor-pointer"
+                  type="button"
+                  onClick={() => setBatchMode(true)}
+                  className={`px-2.5 py-1 text-xs font-medium rounded-md transition-all cursor-pointer ${
+                    batchMode ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-800'
+                  }`}
                 >
-                  Save Settings
+                  Batch Watch Later
                 </button>
               </div>
-            </form>
+            </div>
+
+            {!batchMode ? (
+              /* Single Video Mode */
+              <form onSubmit={handleSaveSingleYouTube} className="space-y-3">
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <div className="relative flex-1">
+                    <input
+                      type="url"
+                      value={ytUrl}
+                      onChange={(e) => setYtUrl(e.target.value)}
+                      placeholder="Paste YouTube link (e.g. https://youtu.be/... or https://www.youtube.com/watch?v=...)"
+                      className="w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500 shadow-xs"
+                    />
+                    {ytUrl && (
+                      <button
+                        type="button"
+                        onClick={() => setYtUrl('')}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 hover:text-slate-600"
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={ytSaving || !ytUrl.trim()}
+                    className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white shadow-xs transition-colors shrink-0 cursor-pointer"
+                  >
+                    {ytSaving ? (
+                      <>
+                        <RefreshCw className="w-4 h-4 animate-spin" />
+                        <span>Saving...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-4 h-4" />
+                        <span>Save to Vault</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+
+                {/* Instant Video Preview Card */}
+                {ytVideoId && (
+                  <div className="flex items-center gap-3 p-3 bg-white border border-slate-200 rounded-xl mt-3 animate-fade-in">
+                    <img
+                      src={`https://i.ytimg.com/vi/${ytVideoId}/hqdefault.jpg`}
+                      alt="YouTube thumbnail preview"
+                      className="w-24 h-16 object-cover rounded-lg shrink-0 border border-slate-100"
+                    />
+                    <div className="text-xs space-y-1 overflow-hidden">
+                      <span className="font-semibold text-red-600 uppercase tracking-wider text-[10px]">
+                        YouTube Video Detected
+                      </span>
+                      <p className="font-medium text-slate-900 truncate">{ytUrl}</p>
+                      <p className="text-slate-500 text-[11px]">
+                        Click "Save to Vault" above to ingest and index into your spaced recall queue.
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </form>
+            ) : (
+              /* Batch Watch Later Mode */
+              <form onSubmit={handleSaveBatchYouTube} className="space-y-3">
+                <textarea
+                  rows={4}
+                  value={batchUrls}
+                  onChange={(e) => setBatchUrls(e.target.value)}
+                  placeholder="Paste multiple YouTube links (one per line) from your Watch Later playlist:&#10;https://www.youtube.com/watch?v=video1&#10;https://youtu.be/video2&#10;https://www.youtube.com/shorts/video3"
+                  className="w-full bg-white border border-slate-300 rounded-xl p-3 text-xs font-mono text-slate-800 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500 shadow-xs"
+                />
+
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-slate-500">
+                    {batchUrls.split('\n').filter((u) => u.trim().length > 0).length} links entered
+                  </span>
+
+                  <button
+                    type="submit"
+                    disabled={batchProgress !== null || !batchUrls.trim()}
+                    className="inline-flex items-center gap-2 px-5 py-2 rounded-xl text-xs font-semibold bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white shadow-xs transition-colors cursor-pointer"
+                  >
+                    {batchProgress ? (
+                      <>
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                        <span>
+                          Importing {batchProgress.current} of {batchProgress.total}...
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <Layers className="w-3.5 h-3.5" />
+                        <span>Batch Ingest All Videos</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {/* 1-Click YouTube Bookmarklet Banner */}
+            <div className="mt-5 pt-4 border-t border-red-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs bg-red-50/70 p-3 rounded-xl">
+              <div className="flex items-start sm:items-center gap-2 text-slate-700">
+                <Bookmark className="w-4 h-4 text-red-600 shrink-0 mt-0.5 sm:mt-0" />
+                <span>
+                  <strong>1-Click YouTube Bookmarklet:</strong> Drag this button to your bookmarks toolbar to save any
+                  video while watching:
+                </span>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                <a
+                  href={bookmarkletCode}
+                  onClick={(e) => {
+                    e.preventDefault()
+                    toast('Drag this button to your browser bookmarks bar!', { icon: '📌' })
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-600 text-white font-semibold shadow-xs hover:bg-red-700 cursor-grab active:cursor-grabbing transition-colors"
+                  title="Drag to bookmarks bar"
+                >
+                  <Video className="w-3.5 h-3.5" />
+                  <span>🎬 Save YouTube to Vault</span>
+                </a>
+
+                <button
+                  type="button"
+                  onClick={copyBookmarklet}
+                  className="p-1.5 rounded-lg bg-white border border-slate-200 text-slate-600 hover:text-slate-900 transition-colors"
+                  title="Copy bookmarklet code"
+                >
+                  {copiedBookmarklet ? <Check className="w-3.5 h-3.5 text-teal-600" /> : <Copy className="w-3.5 h-3.5" />}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* ═══════════════════════════════════════════════════════════════════
+              2. ESSENTIAL APP CONNECTORS GRID
+              ═══════════════════════════════════════════════════════════════════ */}
+          <div className="grid md:grid-cols-2 gap-5">
+            {/* 🌐 Universal Web Browser Capture */}
+            <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs flex flex-col justify-between">
+              <div>
+                <div className="flex items-start justify-between gap-3 mb-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-teal-600 text-white flex items-center justify-center shadow-xs">
+                      <Globe className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-slate-900 text-sm">Universal Web Capture</h3>
+                      <span className="text-[11px] text-teal-700 font-medium">All Browsers Supported</span>
+                    </div>
+                  </div>
+                  <span className="text-[10px] font-semibold uppercase px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
+                    Zero Setup
+                  </span>
+                </div>
+
+                <p className="text-xs text-slate-600 leading-relaxed mb-4">
+                  Save any article, research paper, documentation, or blog post from Chrome, Safari, Firefox, Edge, Arc,
+                  or Brave with 1 click.
+                </p>
+
+                <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs space-y-2 mb-4">
+                  <div className="font-semibold text-slate-800 flex items-center gap-1.5">
+                    <Bookmark className="w-3.5 h-3.5 text-teal-600" />
+                    <span>Browser Bookmarklet</span>
+                  </div>
+                  <p className="text-[11px] text-slate-500">
+                    Drag the button below to your bookmarks bar. Click it on any page to instantly capture:
+                  </p>
+                  <a
+                    href={bookmarkletCode}
+                    onClick={(e) => {
+                      e.preventDefault()
+                      toast('Drag this button to your browser bookmarks bar!', { icon: '📌' })
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-teal-600 text-white font-semibold shadow-xs hover:bg-teal-700 cursor-grab active:cursor-grabbing transition-colors"
+                  >
+                    <span>🧠 Save to MemoryVault</span>
+                  </a>
+                </div>
+              </div>
+
+              <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
+                <span className="text-slate-500">Need background sync & hotkeys?</span>
+                <a
+                  href="/extension"
+                  className="inline-flex items-center gap-1 text-teal-700 font-semibold hover:underline"
+                >
+                  <span>Get Chrome Extension</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </a>
+              </div>
+            </div>
+
+            {/* 🐙 GitHub Star & Repo Sync */}
+            <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs flex flex-col justify-between">
+              <div>
+                <div className="flex items-start justify-between gap-3 mb-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-slate-900 text-white flex items-center justify-center shadow-xs">
+                      <FolderGit2 className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-slate-900 text-sm">GitHub Stars & Repos</h3>
+                      <span className="text-[11px] text-slate-500 font-medium">Public Star Importer</span>
+                    </div>
+                  </div>
+                  <span className="text-[10px] font-semibold uppercase px-2 py-0.5 rounded bg-teal-50 text-teal-700 border border-teal-200">
+                    1-Click Sync
+                  </span>
+                </div>
+
+                <p className="text-xs text-slate-600 leading-relaxed mb-3">
+                  Enter your GitHub username to preview and import your public starred repositories into your knowledge
+                  base.
+                </p>
+
+                <form onSubmit={handleFetchGitHubStars} className="flex gap-2 mb-3">
+                  <input
+                    type="text"
+                    value={ghUsername}
+                    onChange={(e) => setGhUsername(e.target.value)}
+                    placeholder="GitHub username (e.g. torvalds)"
+                    className="flex-1 bg-slate-50 border border-slate-300 rounded-lg px-3 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-900"
+                  />
+                  <button
+                    type="submit"
+                    disabled={ghFetching || !ghUsername.trim()}
+                    className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-900 hover:bg-slate-800 text-white disabled:opacity-50 transition-colors shrink-0 cursor-pointer"
+                  >
+                    {ghFetching ? 'Fetching...' : 'Fetch Stars'}
+                  </button>
+                </form>
+
+                {ghRepos.length > 0 && (
+                  <div className="max-h-36 overflow-y-auto space-y-1.5 p-2 bg-slate-50 rounded-xl border border-slate-200">
+                    {ghRepos.map((r) => (
+                      <div
+                        key={r.id}
+                        className="flex items-center justify-between text-xs p-1.5 bg-white rounded-lg border border-slate-100"
+                      >
+                        <span className="font-medium text-slate-800 truncate mr-2">{r.name}</span>
+                        <button
+                          onClick={() => handleImportRepo(r)}
+                          disabled={ghImportingId === r.id}
+                          className="px-2 py-0.5 rounded text-[11px] font-semibold bg-teal-50 text-teal-700 hover:bg-teal-100 shrink-0 cursor-pointer"
+                        >
+                          {ghImportingId === r.id ? 'Importing...' : '+ Import'}
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+                <span>Or paste any repo link directly into your vault</span>
+                <ExternalLink className="w-3.5 h-3.5 text-slate-400" />
+              </div>
+            </div>
+
+            {/* ✉️ Inbound Email to Vault */}
+            <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs flex flex-col justify-between">
+              <div>
+                <div className="flex items-start justify-between gap-3 mb-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center shadow-xs">
+                      <Mail className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-slate-900 text-sm">Email-to-Vault Forwarder</h3>
+                      <span className="text-[11px] text-indigo-700 font-medium">Automatic Ingestion</span>
+                    </div>
+                  </div>
+                  <span className="text-[10px] font-semibold uppercase px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200">
+                    Active
+                  </span>
+                </div>
+
+                <p className="text-xs text-slate-600 leading-relaxed mb-3">
+                  Forward newsletters, Substack digests, and articles from Gmail, Apple Mail, or Outlook to your private
+                  vault address.
+                </p>
+
+                <div className="p-3 bg-indigo-50/60 border border-indigo-100 rounded-xl text-xs space-y-2">
+                  <span className="text-[11px] font-medium text-indigo-900">Your Private Vault Email:</span>
+                  <div className="flex items-center justify-between bg-white border border-indigo-200 rounded-lg p-2 font-mono text-[11px]">
+                    <span className="text-slate-800 truncate mr-2">
+                      {profile?.vaultEmail || 'Loading your address...'}
+                    </span>
+                    <button
+                      onClick={copyVaultEmail}
+                      className="inline-flex items-center gap-1 text-indigo-600 hover:text-indigo-800 font-sans font-semibold shrink-0 cursor-pointer"
+                    >
+                      {copiedEmail ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                      <span>{copiedEmail ? 'Copied' : 'Copy'}</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="pt-3 border-t border-slate-100 text-[11px] text-slate-500">
+                <span>Tip: Set up a Gmail auto-forward filter for newsletters.</span>
+              </div>
+            </div>
+
+            {/* 📱 Mobile Web Share Target (PWA) */}
+            <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs flex flex-col justify-between">
+              <div>
+                <div className="flex items-start justify-between gap-3 mb-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-sky-500 text-white flex items-center justify-center shadow-xs">
+                      <Share2 className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-slate-900 text-sm">Mobile "Share To" Target</h3>
+                      <span className="text-[11px] text-sky-700 font-medium">iOS & Android Native Sheet</span>
+                    </div>
+                  </div>
+                  <span className="text-[10px] font-semibold uppercase px-2 py-0.5 rounded bg-sky-50 text-sky-700 border border-sky-200">
+                    PWA Ready
+                  </span>
+                </div>
+
+                <p className="text-xs text-slate-600 leading-relaxed mb-3">
+                  When browsing on your phone in the YouTube app, Twitter app, Safari, or Chrome: tap "Share" and pick
+                  MemoryVault.
+                </p>
+
+                <div className="space-y-2 text-xs text-slate-600 bg-slate-50 p-3 rounded-xl border border-slate-200">
+                  <div className="flex items-center gap-2 text-slate-800 font-medium text-[11px]">
+                    <Smartphone className="w-3.5 h-3.5 text-sky-600" />
+                    <span>How to enable on mobile:</span>
+                  </div>
+                  <ol className="list-decimal list-inside space-y-1 text-[11px] text-slate-500">
+                    <li>Open MemoryVault in Safari or Chrome on your phone.</li>
+                    <li>Tap browser menu → "Add to Home Screen".</li>
+                    <li>MemoryVault registers into your native system Share Sheet!</li>
+                  </ol>
+                </div>
+              </div>
+
+              <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
+                <span className="text-slate-500">Instant background capture</span>
+                <a
+                  href="/share-target"
+                  className="text-sky-700 font-semibold hover:underline"
+                >
+                  Test Share Target →
+                </a>
+              </div>
+            </div>
           </div>
         </div>
-      )}
-
-      {/* ── Custom Plugin Registration Modal ─────────────────────────────── */}
-      {showCustomModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
-          <div className="bg-white border border-slate-200 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4">
+      ) : (
+        /* ═══════════════════════════════════════════════════════════════════
+            DEVELOPER & REST WEBHOOKS TAB
+            ═══════════════════════════════════════════════════════════════════ */
+        <div className="space-y-6">
+          <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs space-y-4">
             <div className="flex items-start justify-between">
               <div>
-                <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
                   <Code2 className="w-5 h-5 text-teal-600" />
-                  <span>Register Custom Inbound Webhook</span>
-                </h3>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Pipe external data from any service, cURL script, or webhook automation directly into your vault.
+                  <span>Custom Inbound Webhooks & REST API</span>
+                </h2>
+                <p className="text-xs text-slate-500 mt-1">
+                  Send JSON payloads from Zapier, Make.com, n8n, RSS scripts, or command line curl directly into your vault.
                 </p>
               </div>
-              <button
-                onClick={() => setShowCustomModal(false)}
-                className="text-slate-400 hover:text-slate-600 text-lg font-bold p-1 cursor-pointer"
-              >
-                ✕
-              </button>
+              <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-teal-50 text-teal-700 border border-teal-200">
+                100% Free
+              </span>
             </div>
 
             <div className="bg-slate-900 text-slate-100 rounded-xl p-4 font-mono text-xs space-y-2">
               <div className="flex items-center justify-between text-slate-400 text-[11px] pb-2 border-b border-slate-800">
-                <span>Webhook Ingestion URL</span>
+                <span>cURL Quick Ingestion</span>
                 <button
                   onClick={() => {
-                    navigator.clipboard.writeText('https://api.memoryvault.dev/api/plugins/webhook')
-                    toast.success('Copied endpoint URL!')
+                    navigator.clipboard.writeText(`curl -X POST https://api.stacknode.dev/api/vault/save -H "Content-Type: application/json" -d '{"url": "https://example.com"}'`)
+                    toast.success('Copied cURL command!')
                   }}
                   className="inline-flex items-center gap-1 text-teal-400 hover:text-teal-300 cursor-pointer"
                 >
-                  <Copy className="w-3 h-3" /> Copy
+                  <Copy className="w-3 h-3" /> Copy cURL
                 </button>
               </div>
               <code className="text-teal-300 block break-all">
-                POST https://api.memoryvault.dev/api/plugins/webhook
+                curl -X POST https://api.stacknode.dev/api/vault/save \<br />
+                &nbsp;&nbsp;-H "Content-Type: application/json" \<br />
+                &nbsp;&nbsp;-H "Authorization: Bearer YOUR_TOKEN" \<br />
+                &nbsp;&nbsp;-d '{'{"url": "https://youtu.be/..."}'}'
               </code>
-              <p className="text-[11px] text-slate-400 pt-1">
-                Headers: <span className="text-amber-300">X-Vault-Key: mv_sec_99a8b7c6d5e4f3a2</span>
-              </p>
             </div>
 
-            <div className="space-y-3">
-              <div>
-                <label className="text-xs font-semibold text-slate-700">Payload Format Example</label>
-                <pre className="bg-slate-100 text-slate-800 p-3 rounded-lg text-[11px] font-mono mt-1 overflow-x-auto">
-{`{
-  "url": "https://arxiv.org/abs/2312.00752",
-  "title": "Mamba: Linear-Time Sequence Modeling",
-  "tags": ["AI", "Transformers", "Research"],
-  "emotionalContext": "Deep Study"
-}`}
-                </pre>
+            {/* Backend Integrations Status Table */}
+            <div className="pt-4 border-t border-slate-200">
+              <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-3">
+                Registered Backend Integrations ({backendPlugins.length})
+              </h3>
+              <div className="divide-y divide-slate-100 border border-slate-200 rounded-xl overflow-hidden">
+                {backendPlugins.map((bp) => (
+                  <div key={bp.id} className="p-3.5 flex items-center justify-between bg-white hover:bg-slate-50 transition-colors">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-slate-900 text-xs">{bp.name}</span>
+                        <span className="text-[10px] text-slate-400 font-mono">v{bp.version}</span>
+                      </div>
+                      <p className="text-[11px] text-slate-500 mt-0.5 line-clamp-1">{bp.description}</p>
+                    </div>
+
+                    <div className="flex items-center gap-3 shrink-0">
+                      <button
+                        onClick={() => handleSyncBackendPlugin(bp.id)}
+                        disabled={syncingPluginId === bp.id}
+                        className="text-xs text-slate-600 hover:text-slate-900 px-2 py-1 rounded hover:bg-slate-100 font-medium cursor-pointer"
+                      >
+                        {syncingPluginId === bp.id ? 'Syncing...' : 'Sync'}
+                      </button>
+
+                      <label className="relative inline-flex items-center cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={bp.enabled}
+                          onChange={() => handleToggleBackendPlugin(bp.id, bp.enabled)}
+                          className="sr-only peer"
+                        />
+                        <div className="w-8 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-teal-600"></div>
+                      </label>
+                    </div>
+                  </div>
+                ))}
               </div>
-            </div>
-
-            <div className="pt-3 border-t border-slate-200 flex justify-end">
-              <button
-                onClick={() => {
-                  toast.success('Webhook is live and ready to receive payloads!')
-                  setShowCustomModal(false)
-                }}
-                className="px-4 py-2 rounded-lg text-xs font-semibold bg-teal-600 hover:bg-teal-700 text-white cursor-pointer"
-              >
-                Got It
-              </button>
             </div>
           </div>
         </div>

@@ -33,7 +33,17 @@ export default function ShareTarget() {
       .then((response) => {
         setItem(response.data.data)
         setStatus('success')
-        setTimeout(() => navigate('/dashboard', { replace: true }), 2000)
+        if (window.opener) {
+          setTimeout(() => {
+            try {
+              window.close()
+            } catch {
+              navigate('/dashboard', { replace: true })
+            }
+          }, 1500)
+        } else {
+          setTimeout(() => navigate('/dashboard', { replace: true }), 2000)
+        }
       })
       .catch((err) => {
         setErrorMessage(err.response?.data?.message ?? 'Could not save the shared link')

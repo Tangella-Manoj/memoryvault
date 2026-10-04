@@ -51,11 +51,25 @@ public class VaultItemService {
     public VaultItemResponse save(Long userId, SaveVaultItemRequest request) {
         User user = userRepository.getReferenceById(userId);
 
+        ItemSource source = request.source();
+        if (source == null || source == ItemSource.WEB) {
+            String lowerUrl = request.url().toLowerCase();
+            if (lowerUrl.contains("youtube.com") || lowerUrl.contains("youtu.be")) {
+                source = ItemSource.YOUTUBE;
+            } else if (lowerUrl.contains("twitter.com") || lowerUrl.contains("x.com")) {
+                source = ItemSource.TWITTER;
+            } else if (lowerUrl.contains("instagram.com")) {
+                source = ItemSource.INSTAGRAM;
+            } else {
+                source = ItemSource.WEB;
+            }
+        }
+
         VaultItem item = VaultItem.builder()
                 .user(user)
                 .url(request.url())
                 .status(ItemStatus.PROCESSING)
-                .source(request.source() != null ? request.source() : ItemSource.WEB)
+                .source(source)
                 .build();
 
         item = vaultItemRepository.save(item);
