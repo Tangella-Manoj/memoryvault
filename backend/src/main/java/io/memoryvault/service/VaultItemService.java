@@ -2,6 +2,7 @@ package io.memoryvault.service;
 
 import io.memoryvault.domain.User;
 import io.memoryvault.domain.VaultItem;
+import io.memoryvault.domain.enums.ContentType;
 import io.memoryvault.domain.enums.ItemSource;
 import io.memoryvault.domain.enums.ItemStatus;
 import io.memoryvault.dto.vault.SaveVaultItemRequest;
@@ -16,6 +17,7 @@ import io.memoryvault.service.intelligence.ContextDetector;
 import io.memoryvault.service.intelligence.ResurfaceEngine;
 import io.memoryvault.service.intelligence.ScoredVaultItem;
 import io.memoryvault.service.intelligence.VaultItemSavedEvent;
+import io.memoryvault.service.intelligence.ContentTypeDetector;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -32,6 +34,7 @@ public class VaultItemService {
     private final ContextDetector contextDetector;
     private final ResurfaceEngine resurfaceEngine;
     private final ApplicationEventPublisher eventPublisher;
+    private final ContentTypeDetector contentTypeDetector;
 
     public VaultItemService(
             VaultItemRepository vaultItemRepository,
@@ -40,11 +43,24 @@ public class VaultItemService {
             ResurfaceEngine resurfaceEngine,
             ApplicationEventPublisher eventPublisher
     ) {
+        this(vaultItemRepository, userRepository, contextDetector, resurfaceEngine, eventPublisher, new ContentTypeDetector());
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public VaultItemService(
+            VaultItemRepository vaultItemRepository,
+            UserRepository userRepository,
+            ContextDetector contextDetector,
+            ResurfaceEngine resurfaceEngine,
+            ApplicationEventPublisher eventPublisher,
+            ContentTypeDetector contentTypeDetector
+    ) {
         this.vaultItemRepository = vaultItemRepository;
         this.userRepository = userRepository;
         this.contextDetector = contextDetector;
         this.resurfaceEngine = resurfaceEngine;
         this.eventPublisher = eventPublisher;
+        this.contentTypeDetector = contentTypeDetector != null ? contentTypeDetector : new ContentTypeDetector();
     }
 
     @Transactional
@@ -65,9 +81,12 @@ public class VaultItemService {
             }
         }
 
+        ContentType detectedType = contentTypeDetector.detect(request.url());
+
         VaultItem item = VaultItem.builder()
                 .user(user)
                 .url(request.url())
+                .contentType(detectedType != null ? detectedType : ContentType.OTHER)
                 .status(ItemStatus.PROCESSING)
                 .source(source)
                 .build();
@@ -97,9 +116,12 @@ public class VaultItemService {
     public VaultItemResponse saveFromChromeSelection(Long userId, String url, String selectedText) {
         User user = userRepository.getReferenceById(userId);
 
+        ContentType detectedType = contentTypeDetector.detect(url);
+
         VaultItem item = VaultItem.builder()
                 .user(user)
                 .url(url)
+                .contentType(detectedType != null ? detectedType : ContentType.OTHER)
                 .summary(selectedText)
                 .status(ItemStatus.PROCESSING)
                 .source(ItemSource.CHROME_EXTENSION)

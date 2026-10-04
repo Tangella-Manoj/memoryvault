@@ -47,13 +47,19 @@ public class ContentTypeDetector {
         if (host.contains("docs.google.com") || url.endsWith(".pdf")) {
             return ContentType.DOCUMENT;
         }
-        if (metadata.imageUrl() != null && metadata.bodyText().isBlank()) {
-            return ContentType.IMAGE;
-        }
-        if (metadata.bodyText() != null && metadata.bodyText().length() > 500) {
-            return ContentType.ARTICLE;
+        if (metadata != null) {
+            if (metadata.imageUrl() != null && (metadata.bodyText() == null || metadata.bodyText().isBlank())) {
+                return ContentType.IMAGE;
+            }
+            if (metadata.bodyText() != null && metadata.bodyText().length() > 500) {
+                return ContentType.ARTICLE;
+            }
         }
         return ContentType.OTHER;
+    }
+
+    public ContentType detect(String url) {
+        return detect(url, null);
     }
 
     private String hostOf(String url) {

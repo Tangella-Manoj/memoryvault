@@ -3,6 +3,7 @@ package io.memoryvault.dto.vault;
 import io.memoryvault.domain.VaultItem;
 import io.memoryvault.domain.enums.ContentType;
 import io.memoryvault.domain.enums.EmotionalContext;
+import io.memoryvault.domain.enums.ItemSource;
 import io.memoryvault.domain.enums.ItemStatus;
 import io.memoryvault.domain.enums.LifeContext;
 
@@ -19,6 +20,7 @@ public record VaultItemResponse(
         String summary,
         String ogImageUrl,
         ContentType contentType,
+        ItemSource source,
         ItemStatus status,
         EmotionalContext emotionalContext,
         LifeContext lifeContext,
@@ -36,6 +38,7 @@ public record VaultItemResponse(
                 item.getSummary(),
                 item.getOgImageUrl(),
                 item.getContentType(),
+                item.getSource(),
                 item.getStatus(),
                 item.getEmotionalContext(),
                 item.getLifeContext(),
