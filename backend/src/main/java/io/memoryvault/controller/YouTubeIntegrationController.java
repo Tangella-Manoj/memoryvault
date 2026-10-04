@@ -63,13 +63,13 @@ public class YouTubeIntegrationController {
     }
 
     @GetMapping("/connect")
-    public ApiResponse<Map<String, String>> connect() {
+    public ApiResponse<Map<String, String>> connect(@RequestParam(required = false, defaultValue = "/plugins") String returnPath) {
         if (!oAuthClient.isConfigured()) {
             throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "YOUTUBE_NOT_CONFIGURED",
                     "GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET are not configured on this server");
         }
         Long userId = SecurityUtil.currentUserId();
-        String state = stateStore.create(userId);
+        String state = stateStore.create(userId, returnPath);
         return ApiResponse.success(Map.of("authorizationUrl", oAuthClient.buildAuthorizationUrl(state)), "Authorization URL");
     }
 
@@ -80,23 +80,26 @@ public class YouTubeIntegrationController {
             @RequestParam(required = false) String error,
             HttpServletResponse response
     ) throws IOException {
-        if (error != null || code == null || state == null) {
-            response.sendRedirect(frontendBaseUrl + "/profile?youtube=error");
-            return;
-        }
+        OAuthStateStore.StateResult result = (state != null) ? stateStore.consumeResult(state).orElse(null) : null;
+        String returnPath = (result != null && result.returnPath() != null) ? result.returnPath() : "/plugins";
+        String separator = returnPath.contains("?") ? "&" : "?";
 
-        Long userId = stateStore.consume(state).orElse(null);
-        if (userId == null) {
-            response.sendRedirect(frontendBaseUrl + "/profile?youtube=error");
+        if (error != null || code == null || state == null || result == null) {
+            response.sendRedirect(frontendBaseUrl + returnPath + separator + "youtube=error");
             return;
         }
 
         try {
             GoogleOAuthClient.TokenResult tokens = oAuthClient.exchangeCode(code);
-            saveIntegration(userId, tokens);
-            response.sendRedirect(frontendBaseUrl + "/profile?youtube=connected");
+            saveIntegration(result.userId(), tokens);
+            try {
+                youTubeSyncService.syncUser(result.userId());
+            } catch (Exception ex) {
+                // Initial sync failure shouldn't abort the successful connection redirect
+            }
+            response.sendRedirect(frontendBaseUrl + returnPath + separator + "youtube=connected");
         } catch (Exception ex) {
-            response.sendRedirect(frontendBaseUrl + "/profile?youtube=error");
+            response.sendRedirect(frontendBaseUrl + returnPath + separator + "youtube=error");
         }
     }
 

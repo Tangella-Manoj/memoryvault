@@ -22,26 +22,38 @@ public class OAuthStateStore {
 
     private static final long TTL_SECONDS = 600; // 10 minutes — comfortably covers a real consent flow
 
-    private record Entry(Long userId, Instant expiresAt) {
+    public record StateResult(Long userId, String returnPath) {
+    }
+
+    private record Entry(Long userId, String returnPath, Instant expiresAt) {
     }
 
     private final Map<String, Entry> states = new ConcurrentHashMap<>();
     private final SecureRandom secureRandom = new SecureRandom();
 
     public String create(Long userId) {
+        return create(userId, "/plugins");
+    }
+
+    public String create(Long userId, String returnPath) {
         byte[] bytes = new byte[24];
         secureRandom.nextBytes(bytes);
         String state = Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
-        states.put(state, new Entry(userId, Instant.now().plusSeconds(TTL_SECONDS)));
+        String path = (returnPath != null && !returnPath.isBlank()) ? returnPath : "/plugins";
+        states.put(state, new Entry(userId, path, Instant.now().plusSeconds(TTL_SECONDS)));
         return state;
     }
 
     /** Consumes (single-use) and returns the user id for a state, if valid and unexpired. */
     public Optional<Long> consume(String state) {
+        return consumeResult(state).map(StateResult::userId);
+    }
+
+    public Optional<StateResult> consumeResult(String state) {
         Entry entry = states.remove(state);
         if (entry == null || entry.expiresAt().isBefore(Instant.now())) {
             return Optional.empty();
         }
-        return Optional.of(entry.userId());
+        return Optional.of(new StateResult(entry.userId(), entry.returnPath()));
     }
 }

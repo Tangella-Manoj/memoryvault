@@ -19,6 +19,8 @@ import {
   Layers,
   MessageSquare,
   Clipboard,
+  Info,
+  X,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '../lib/api'
@@ -38,6 +40,12 @@ export default function Plugins() {
   const [profile, setProfile] = useState(null)
   const [copiedEmail, setCopiedEmail] = useState(false)
   const [copiedBookmarklet, setCopiedBookmarklet] = useState(false)
+
+  // YouTube Account OAuth & Sync state
+  const [ytStatus, setYtStatus] = useState(null)
+  const [ytSyncing, setYtSyncing] = useState(false)
+  const [ytConnecting, setYtConnecting] = useState(false)
+  const [showOAuthConfigModal, setShowOAuthConfigModal] = useState(false)
 
   // YouTube Ingestion state
   const [ytUrl, setYtUrl] = useState('')
@@ -67,7 +75,14 @@ export default function Plugins() {
   const [backendPlugins, setBackendPlugins] = useState([])
   const [syncingPluginId, setSyncingPluginId] = useState(null)
 
-  // Load user profile & backend plugins on mount
+  function loadYouTubeStatus() {
+    api
+      .get('/integrations/youtube/status')
+      .then((res) => setYtStatus(res.data?.data ?? null))
+      .catch(() => {})
+  }
+
+  // Load user profile, backend plugins & YouTube integration status on mount
   useEffect(() => {
     api
       .get('/users/me')
@@ -82,7 +97,71 @@ export default function Plugins() {
         }
       })
       .catch(() => {})
+
+    loadYouTubeStatus()
+
+    const params = new URLSearchParams(window.location.search)
+    const ytParam = params.get('youtube')
+    if (ytParam === 'connected') {
+      toast.success('YouTube account connected successfully! Starting initial sync...', { icon: '🎬' })
+      api
+        .post('/integrations/youtube/sync')
+        .then((res) => {
+          toast.success(`Synced ${res.data?.data?.itemsCreated ?? 0} video(s) from your YouTube account!`)
+          loadYouTubeStatus()
+        })
+        .catch(() => {
+          loadYouTubeStatus()
+        })
+    } else if (ytParam === 'error') {
+      toast.error('Could not connect your YouTube account. Please verify Google OAuth settings.')
+    }
   }, [])
+
+  async function handleConnectYouTube() {
+    setYtConnecting(true)
+    try {
+      const res = await api.get('/integrations/youtube/connect', {
+        params: { returnPath: '/plugins' },
+      })
+      if (res.data?.data?.authorizationUrl) {
+        window.location.href = res.data.data.authorizationUrl
+      }
+    } catch (err) {
+      if (err.response?.data?.errorCode === 'YOUTUBE_NOT_CONFIGURED') {
+        setShowOAuthConfigModal(true)
+      } else {
+        toast.error(err.response?.data?.message || 'Could not initiate YouTube connection')
+      }
+    } finally {
+      setYtConnecting(false)
+    }
+  }
+
+  async function handleSyncYouTubeNow() {
+    setYtSyncing(true)
+    try {
+      const res = await api.post('/integrations/youtube/sync')
+      toast.success(`Successfully pulled ${res.data?.data?.itemsCreated ?? 0} new video(s) into your vault!`)
+      loadYouTubeStatus()
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Sync failed')
+    } finally {
+      setYtSyncing(false)
+    }
+  }
+
+  async function handleToggleYouTubeAutoSync() {
+    if (!ytStatus) return
+    const next = !ytStatus.syncEnabled
+    try {
+      const res = await api.post('/integrations/youtube/toggle', null, { params: { enabled: next } })
+      setYtStatus(res.data?.data)
+      toast.success(next ? 'Auto-sync enabled (every 6 hours)' : 'Auto-sync paused')
+    } catch {
+      toast.error('Failed to update sync settings')
+    }
+  }
 
   // ── YouTube Handlers ────────────────────────────────────────────────────────
   const ytVideoId = getYouTubeId(ytUrl)
@@ -344,46 +423,147 @@ export default function Plugins() {
               1. YOUTUBE WATCH LATER & VIDEO INGESTION (HERO CONNECTOR)
               ═══════════════════════════════════════════════════════════════════ */}
           <div className="bg-gradient-to-br from-red-50/50 via-white to-white border border-red-200/80 rounded-2xl p-6 shadow-xs relative overflow-hidden">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 rounded-xl bg-red-600 text-white flex items-center justify-center shadow-xs">
                   <Video className="w-6 h-6" />
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
-                    <h2 className="text-lg font-bold text-slate-900">YouTube & Watch-Later Ingest</h2>
+                    <h2 className="text-lg font-bold text-slate-900">YouTube Account Sync & Watch-Later</h2>
                     <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-red-100 text-red-700">
                       Most Popular
                     </span>
                   </div>
                   <p className="text-xs text-slate-500">
-                    Paste any YouTube video, shorts, or Watch Later links. Auto-extracts thumbnails, channel, and AI takeaways.
+                    Connect your personal Google account to auto-pull Liked & Watch Later videos, or quick-save links directly.
                   </p>
                 </div>
               </div>
 
-              {/* Mode Toggle */}
-              <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg self-start sm:self-auto">
-                <button
-                  type="button"
-                  onClick={() => setBatchMode(false)}
-                  className={`px-2.5 py-1 text-xs font-medium rounded-md transition-all cursor-pointer ${
-                    !batchMode ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-800'
-                  }`}
-                >
-                  Single Video
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setBatchMode(true)}
-                  className={`px-2.5 py-1 text-xs font-medium rounded-md transition-all cursor-pointer ${
-                    batchMode ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-800'
-                  }`}
-                >
-                  Batch Watch Later
-                </button>
+              {/* Account Status Badge */}
+              {ytStatus?.connected ? (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 self-start sm:self-auto">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>Google Account Connected</span>
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-600 border border-slate-200 self-start sm:self-auto">
+                  <span className="w-2 h-2 rounded-full bg-slate-400" />
+                  <span>Account Not Connected</span>
+                </span>
+              )}
+            </div>
+
+            {/* ── 1. ACCOUNT-LEVEL AUTOMATED SYNC BOX ─────────────────────── */}
+            <div className="bg-white border border-slate-200/90 rounded-xl p-4 mb-6 shadow-2xs">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div>
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800 flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-red-600" />
+                    <span>Automated Account Sync (Google OAuth)</span>
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-1 max-w-xl">
+                    {ytStatus?.connected
+                      ? `Syncs your personal YouTube Liked Videos and Watch Later playlists automatically every 6 hours with spaced repetition.`
+                      : `Connect your personal YouTube account with 1 click. MemoryVault will automatically pull your saved videos and Watch Later playlist into your Second Brain.`}
+                  </p>
+
+                  {ytStatus?.connected && (
+                    <div className="flex flex-wrap items-center gap-3 mt-2 text-xs text-slate-600">
+                      <span className="font-medium">
+                        Total Synced: <strong className="text-slate-900">{ytStatus.totalItemsSynced ?? 0} videos</strong>
+                      </span>
+                      <span>•</span>
+                      <span>
+                        Last Synced:{' '}
+                        <strong className="text-slate-900">
+                          {ytStatus.lastSyncedAt ? new Date(ytStatus.lastSyncedAt).toLocaleString() : 'Never'}
+                        </strong>
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+                  {ytStatus?.connected ? (
+                    <>
+                      <button
+                        onClick={handleSyncYouTubeNow}
+                        disabled={ytSyncing}
+                        className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold bg-red-600 hover:bg-red-700 text-white disabled:opacity-50 transition-colors shadow-xs cursor-pointer"
+                      >
+                        <RefreshCw className={`w-3.5 h-3.5 ${ytSyncing ? 'animate-spin' : ''}`} />
+                        <span>{ytSyncing ? 'Syncing...' : 'Sync Now'}</span>
+                      </button>
+                      <label className="flex items-center gap-2 text-xs text-slate-700 bg-slate-50 px-3 py-2 rounded-xl border border-slate-200 cursor-pointer hover:bg-slate-100 transition-colors">
+                        <input
+                          type="checkbox"
+                          checked={ytStatus.syncEnabled}
+                          onChange={handleToggleYouTubeAutoSync}
+                          className="rounded text-red-600 focus:ring-red-500"
+                        />
+                        <span>Auto-sync every 6h</span>
+                      </label>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        onClick={handleConnectYouTube}
+                        disabled={ytConnecting}
+                        className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold bg-slate-900 hover:bg-slate-800 text-white disabled:opacity-50 transition-colors shadow-xs cursor-pointer"
+                      >
+                        <Video className="w-4 h-4 text-red-500" />
+                        <span>{ytConnecting ? 'Connecting...' : 'Connect YouTube Account'}</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setShowOAuthConfigModal(true)}
+                        className="p-2 rounded-xl text-xs font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer"
+                        title="View setup instructions"
+                      >
+                        <Info className="w-4 h-4 text-slate-400" />
+                      </button>
+                    </>
+                  )}
+                </div>
               </div>
             </div>
+
+            {/* ── 2. QUICK LINK & BATCH INGESTION (ZERO-CONFIG) ───────────── */}
+            <div className="border-t border-red-100 pt-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
+                <div>
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-800">
+                    Quick Ingest & Watch Later Importer
+                  </span>
+                  <p className="text-[11px] text-slate-500">
+                    Zero setup required — paste video links or import multiple Watch Later URLs directly.
+                  </p>
+                </div>
+
+                {/* Mode Toggle */}
+                <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg self-start sm:self-auto">
+                  <button
+                    type="button"
+                    onClick={() => setBatchMode(false)}
+                    className={`px-2.5 py-1 text-xs font-medium rounded-md transition-all cursor-pointer ${
+                      !batchMode ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-800'
+                    }`}
+                  >
+                    Single Video
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setBatchMode(true)}
+                    className={`px-2.5 py-1 text-xs font-medium rounded-md transition-all cursor-pointer ${
+                      batchMode ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-800'
+                    }`}
+                  >
+                    Batch Watch Later
+                  </button>
+                </div>
+              </div>
 
             {!batchMode ? (
               /* Single Video Mode */
@@ -517,6 +697,7 @@ export default function Plugins() {
                   {copiedBookmarklet ? <Check className="w-3.5 h-3.5 text-teal-600" /> : <Copy className="w-3.5 h-3.5" />}
                 </button>
               </div>
+            </div>
             </div>
           </div>
 
@@ -896,7 +1077,7 @@ export default function Plugins() {
                 curl -X POST https://api.stacknode.dev/api/vault/save \<br />
                 &nbsp;&nbsp;-H "Content-Type: application/json" \<br />
                 &nbsp;&nbsp;-H "Authorization: Bearer YOUR_TOKEN" \<br />
-                &nbsp;&nbsp;-d '{'{"url": "https://youtu.be/..."}'}'
+                &nbsp;&nbsp;-d {`'{"url": "https://youtu.be/..."}'`}
               </code>
             </div>
 
@@ -939,6 +1120,60 @@ export default function Plugins() {
                 ))}
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Google OAuth Setup Modal ─────────────────────────────────────── */}
+      {showOAuthConfigModal && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center z-50 px-4">
+          <div className="bg-white rounded-2xl w-full max-w-lg p-6 relative shadow-2xl border border-slate-100 animate-scale-up">
+            <button
+              onClick={() => setShowOAuthConfigModal(false)}
+              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center gap-2 mb-1">
+              <Video className="w-5 h-5 text-red-600" />
+              <h2 className="text-lg font-bold text-slate-900">How YouTube Account Sync Works</h2>
+            </div>
+            <p className="text-xs text-slate-500 mb-4">
+              Direct account sync automatically fetches your Liked Videos and Watch Later playlists every 6 hours.
+            </p>
+
+            <div className="space-y-3 text-xs text-slate-700 bg-slate-50 p-4 rounded-xl border border-slate-200 mb-4">
+              <div className="font-semibold text-slate-900">To enable automated Google OAuth:</div>
+              <ol className="list-decimal list-inside space-y-1.5 text-slate-600">
+                <li>
+                  Go to <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noreferrer" className="text-teal-600 hover:underline">Google Cloud Console</a> and create OAuth 2.0 Client Credentials.
+                </li>
+                <li>
+                  Add this Authorized Redirect URI:
+                  <code className="block mt-1 bg-white p-2 rounded border border-slate-200 font-mono text-[11px] text-slate-800 break-all select-all">
+                    https://api.stacknode.dev/api/integrations/youtube/callback
+                  </code>
+                </li>
+                <li>
+                  Set <code className="font-mono bg-white px-1 rounded border">GOOGLE_CLIENT_ID</code> and <code className="font-mono bg-white px-1 rounded border">GOOGLE_CLIENT_SECRET</code> in your server environment variables.
+                </li>
+              </ol>
+            </div>
+
+            <div className="p-3 bg-teal-50 border border-teal-200 rounded-xl text-xs text-teal-900 space-y-1 mb-4">
+              <p className="font-semibold">⚡ No Google Cloud setup needed for manual saving!</p>
+              <p className="text-[11px] text-teal-800">
+                You can instantly paste any video link, batch import multiple Watch Later URLs, or use the 1-click browser bookmarklet with zero setup.
+              </p>
+            </div>
+
+            <button
+              onClick={() => setShowOAuthConfigModal(false)}
+              className="w-full py-2.5 rounded-xl text-xs font-semibold bg-slate-900 hover:bg-slate-800 text-white transition-colors cursor-pointer"
+            >
+              Got it
+            </button>
           </div>
         </div>
       )}
