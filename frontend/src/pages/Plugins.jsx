@@ -15,10 +15,10 @@ import {
   Code2,
   CheckCircle2,
   Smartphone,
-  Laptop,
   ArrowRight,
   Layers,
-  Zap,
+  MessageSquare,
+  Clipboard,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '../lib/api'
@@ -44,7 +44,15 @@ export default function Plugins() {
   const [ytSaving, setYtSaving] = useState(false)
   const [batchMode, setBatchMode] = useState(false)
   const [batchUrls, setBatchUrls] = useState('')
-  const [batchProgress, setBatchProgress] = useState(null) // { current, total }
+  const [batchProgress, setBatchProgress] = useState(null)
+
+  // Twitter/X Ingestion state
+  const [twUrl, setTwUrl] = useState('')
+  const [twSaving, setTwSaving] = useState(false)
+
+  // Reddit Ingestion state
+  const [rdUrl, setRdUrl] = useState('')
+  const [rdSaving, setRdSaving] = useState(false)
 
   // GitHub Star Importer state
   const [ghUsername, setGhUsername] = useState('')
@@ -52,7 +60,7 @@ export default function Plugins() {
   const [ghRepos, setGhRepos] = useState([])
   const [ghImportingId, setGhImportingId] = useState(null)
 
-  // Active view tab: 'essential' (the useful connectors) vs 'developer' (webhooks & SDK)
+  // Active view tab: 'essential' vs 'developer'
   const [activeTab, setActiveTab] = useState('essential')
 
   // Developer plugin list from backend
@@ -78,6 +86,20 @@ export default function Plugins() {
 
   // ── YouTube Handlers ────────────────────────────────────────────────────────
   const ytVideoId = getYouTubeId(ytUrl)
+
+  async function handlePasteYtFromClipboard() {
+    try {
+      const text = await navigator.clipboard.readText()
+      if (text && (text.includes('youtube.com') || text.includes('youtu.be'))) {
+        setYtUrl(text.trim())
+        toast.success('Pasted YouTube link from clipboard!')
+      } else if (text) {
+        setYtUrl(text.trim())
+      }
+    } catch {
+      toast('Please paste manually using Ctrl+V / Cmd+V', { icon: '📋' })
+    }
+  }
 
   async function handleSaveSingleYouTube(e) {
     if (e) e.preventDefault()
@@ -137,6 +159,52 @@ export default function Plugins() {
     setBatchProgress(null)
   }
 
+  // ── Twitter / X Handler ────────────────────────────────────────────────────
+  async function handleSaveTwitter(e) {
+    if (e) e.preventDefault()
+    if (!twUrl.trim()) return
+
+    setTwSaving(true)
+    try {
+      const res = await api.post('/vault/save', {
+        url: twUrl.trim(),
+        source: 'TWITTER',
+      })
+      if (res.data?.data) {
+        addItem(res.data.data)
+      }
+      toast.success('Twitter/X thread saved to vault! Indexing author & key points...')
+      setTwUrl('')
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Could not save this tweet')
+    } finally {
+      setTwSaving(false)
+    }
+  }
+
+  // ── Reddit Handler ─────────────────────────────────────────────────────────
+  async function handleSaveReddit(e) {
+    if (e) e.preventDefault()
+    if (!rdUrl.trim()) return
+
+    setRdSaving(true)
+    try {
+      const res = await api.post('/vault/save', {
+        url: rdUrl.trim(),
+        source: 'WEB',
+      })
+      if (res.data?.data) {
+        addItem(res.data.data)
+      }
+      toast.success('Reddit discussion saved to vault! Processing insights...')
+      setRdUrl('')
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Could not save this discussion')
+    } finally {
+      setRdSaving(false)
+    }
+  }
+
   // ── GitHub Star Importer ───────────────────────────────────────────────────
   async function handleFetchGitHubStars(e) {
     e.preventDefault()
@@ -155,8 +223,8 @@ export default function Plugins() {
         setGhRepos(data)
         toast.success(`Found ${data.length} starred repositories!`)
       }
-    } catch (err) {
-      toast.error(`Could not fetch stars for @${user}: Check username or rate limit`)
+    } catch {
+      toast.error(`Could not fetch stars for @${user}: Check username or public availability`)
     } finally {
       setGhFetching(false)
     }
@@ -181,7 +249,7 @@ export default function Plugins() {
     }
   }
 
-  // ── Clipboard / Bookmarklet Helpers ─────────────────────────────────────────
+  // ── Bookmarklet & Clipboard ─────────────────────────────────────────────────
   const bookmarkletCode = `javascript:(function(){var u=window.location.href,t=document.title;window.open('https://memoryvault.stacknode.dev/share-target?url='+encodeURIComponent(u)+'&title='+encodeURIComponent(t),'mv_save','width=480,height=600,location=no,toolbar=no');})();`
 
   function copyBookmarklet() {
@@ -240,8 +308,8 @@ export default function Plugins() {
             </span>
           </div>
           <p className="text-sm text-slate-500 mt-1 max-w-2xl">
-            Save YouTube videos, Watch Later queues, browser articles, GitHub repos, and mobile shares into your second
-            brain in the simplest way possible.
+            Save links directly from the apps you actually use daily — YouTube, Twitter/X, GitHub, Reddit, and your
+            browser — with zero configuration.
           </p>
         </div>
 
@@ -255,7 +323,7 @@ export default function Plugins() {
                 : 'text-slate-600 hover:text-slate-900'
             }`}
           >
-            Essential Connectors
+            Essential App Connectors
           </button>
           <button
             onClick={() => setActiveTab('developer')}
@@ -327,17 +395,16 @@ export default function Plugins() {
                       value={ytUrl}
                       onChange={(e) => setYtUrl(e.target.value)}
                       placeholder="Paste YouTube link (e.g. https://youtu.be/... or https://www.youtube.com/watch?v=...)"
-                      className="w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500 shadow-xs"
+                      className="w-full bg-white border border-slate-300 rounded-xl pl-4 pr-20 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500 shadow-xs"
                     />
-                    {ytUrl && (
-                      <button
-                        type="button"
-                        onClick={() => setYtUrl('')}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 hover:text-slate-600"
-                      >
-                        Clear
-                      </button>
-                    )}
+                    <button
+                      type="button"
+                      onClick={handlePasteYtFromClipboard}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 inline-flex items-center gap-1 px-2 py-1 text-[11px] font-medium text-slate-500 hover:text-slate-800 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors cursor-pointer"
+                    >
+                      <Clipboard className="w-3 h-3" />
+                      <span>Paste</span>
+                    </button>
                   </div>
                   <button
                     type="submit"
@@ -454,62 +521,124 @@ export default function Plugins() {
           </div>
 
           {/* ═══════════════════════════════════════════════════════════════════
-              2. ESSENTIAL APP CONNECTORS GRID
+              2. ESSENTIAL APP CONNECTORS GRID (CONSUMER APPS)
               ═══════════════════════════════════════════════════════════════════ */}
           <div className="grid md:grid-cols-2 gap-5">
-            {/* 🌐 Universal Web Browser Capture */}
+            {/* 𝕏 Twitter / X Threads & Bookmarks */}
             <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs flex flex-col justify-between">
               <div>
                 <div className="flex items-start justify-between gap-3 mb-3">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-teal-600 text-white flex items-center justify-center shadow-xs">
-                      <Globe className="w-5 h-5" />
+                    <div className="w-10 h-10 rounded-xl bg-slate-950 text-white flex items-center justify-center font-bold text-lg shadow-xs">
+                      𝕏
                     </div>
                     <div>
-                      <h3 className="font-bold text-slate-900 text-sm">Universal Web Capture</h3>
-                      <span className="text-[11px] text-teal-700 font-medium">All Browsers Supported</span>
+                      <h3 className="font-bold text-slate-900 text-sm">Twitter / X Threads & Posts</h3>
+                      <span className="text-[11px] text-slate-500 font-medium">Automatic Thread Unroller</span>
                     </div>
                   </div>
-                  <span className="text-[10px] font-semibold uppercase px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
-                    Zero Setup
+                  <span className="text-[10px] font-semibold uppercase px-2 py-0.5 rounded bg-slate-100 text-slate-800 border border-slate-300">
+                    Frictionless
                   </span>
                 </div>
 
-                <p className="text-xs text-slate-600 leading-relaxed mb-4">
-                  Save any article, research paper, documentation, or blog post from Chrome, Safari, Firefox, Edge, Arc,
-                  or Brave with 1 click.
+                <p className="text-xs text-slate-600 leading-relaxed mb-3">
+                  Paste any tweet or educational thread link from Twitter/X. Extracts author insights and unrolls threads.
                 </p>
 
-                <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs space-y-2 mb-4">
-                  <div className="font-semibold text-slate-800 flex items-center gap-1.5">
-                    <Bookmark className="w-3.5 h-3.5 text-teal-600" />
-                    <span>Browser Bookmarklet</span>
-                  </div>
-                  <p className="text-[11px] text-slate-500">
-                    Drag the button below to your bookmarks bar. Click it on any page to instantly capture:
-                  </p>
+                <form onSubmit={handleSaveTwitter} className="flex gap-2 mb-3">
+                  <input
+                    type="url"
+                    value={twUrl}
+                    onChange={(e) => setTwUrl(e.target.value)}
+                    placeholder="https://x.com/username/status/..."
+                    className="flex-1 bg-slate-50 border border-slate-300 rounded-lg px-3 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-900"
+                  />
+                  <button
+                    type="submit"
+                    disabled={twSaving || !twUrl.trim()}
+                    className="px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-slate-900 hover:bg-slate-800 text-white disabled:opacity-50 transition-colors shrink-0 cursor-pointer"
+                  >
+                    {twSaving ? 'Saving...' : 'Save 𝕏'}
+                  </button>
+                </form>
+
+                <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-[11px] text-slate-600 flex items-center justify-between">
+                  <span>1-Click Bookmarklet for 𝕏:</span>
                   <a
                     href={bookmarkletCode}
                     onClick={(e) => {
                       e.preventDefault()
                       toast('Drag this button to your browser bookmarks bar!', { icon: '📌' })
                     }}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-teal-600 text-white font-semibold shadow-xs hover:bg-teal-700 cursor-grab active:cursor-grabbing transition-colors"
+                    className="font-semibold text-slate-900 hover:underline cursor-grab"
                   >
-                    <span>🧠 Save to MemoryVault</span>
+                    𝕏 Save Tweet →
                   </a>
                 </div>
               </div>
 
-              <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
-                <span className="text-slate-500">Need background sync & hotkeys?</span>
-                <a
-                  href="/extension"
-                  className="inline-flex items-center gap-1 text-teal-700 font-semibold hover:underline"
-                >
-                  <span>Get Chrome Extension</span>
-                  <ArrowRight className="w-3.5 h-3.5" />
-                </a>
+              <div className="pt-3 border-t border-slate-100 text-[11px] text-slate-400">
+                <span>Categorized as TWEET or THREAD with spaced recall</span>
+              </div>
+            </div>
+
+            {/* 🤖 Reddit Discussions & Solutions */}
+            <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs flex flex-col justify-between">
+              <div>
+                <div className="flex items-start justify-between gap-3 mb-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-orange-600 text-white flex items-center justify-center font-bold shadow-xs">
+                      <MessageSquare className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-slate-900 text-sm">Reddit Community Discussions</h3>
+                      <span className="text-[11px] text-orange-700 font-medium">Q&A & Recommendations</span>
+                    </div>
+                  </div>
+                  <span className="text-[10px] font-semibold uppercase px-2 py-0.5 rounded bg-orange-50 text-orange-700 border border-orange-200">
+                    Community
+                  </span>
+                </div>
+
+                <p className="text-xs text-slate-600 leading-relaxed mb-3">
+                  Save Reddit threads with curated tool comparisons, debugging solutions, or engineering advice.
+                </p>
+
+                <form onSubmit={handleSaveReddit} className="flex gap-2 mb-3">
+                  <input
+                    type="url"
+                    value={rdUrl}
+                    onChange={(e) => setRdUrl(e.target.value)}
+                    placeholder="https://reddit.com/r/technology/comments/..."
+                    className="flex-1 bg-slate-50 border border-slate-300 rounded-lg px-3 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                  />
+                  <button
+                    type="submit"
+                    disabled={rdSaving || !rdUrl.trim()}
+                    className="px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-orange-600 hover:bg-orange-700 text-white disabled:opacity-50 transition-colors shrink-0 cursor-pointer"
+                  >
+                    {rdSaving ? 'Saving...' : 'Save Reddit'}
+                  </button>
+                </form>
+
+                <div className="p-2.5 bg-orange-50/60 border border-orange-100 rounded-xl text-[11px] text-orange-900 flex items-center justify-between">
+                  <span>1-Click Bookmarklet for Reddit:</span>
+                  <a
+                    href={bookmarkletCode}
+                    onClick={(e) => {
+                      e.preventDefault()
+                      toast('Drag this button to your browser bookmarks bar!', { icon: '📌' })
+                    }}
+                    className="font-semibold text-orange-800 hover:underline cursor-grab"
+                  >
+                    🤖 Save Reddit →
+                  </a>
+                </div>
+              </div>
+
+              <div className="pt-3 border-t border-slate-100 text-[11px] text-slate-400">
+                <span>Categorized as THREAD with AI summaries</span>
               </div>
             </div>
 
@@ -577,6 +706,62 @@ export default function Plugins() {
               <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
                 <span>Or paste any repo link directly into your vault</span>
                 <ExternalLink className="w-3.5 h-3.5 text-slate-400" />
+              </div>
+            </div>
+
+            {/* 🌐 Universal Web Browser Capture */}
+            <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs flex flex-col justify-between">
+              <div>
+                <div className="flex items-start justify-between gap-3 mb-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-teal-600 text-white flex items-center justify-center shadow-xs">
+                      <Globe className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-slate-900 text-sm">Universal Web Capture</h3>
+                      <span className="text-[11px] text-teal-700 font-medium">All Browsers Supported</span>
+                    </div>
+                  </div>
+                  <span className="text-[10px] font-semibold uppercase px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
+                    Zero Setup
+                  </span>
+                </div>
+
+                <p className="text-xs text-slate-600 leading-relaxed mb-4">
+                  Save any article, research paper, documentation, or blog post from Chrome, Safari, Firefox, Edge, Arc,
+                  or Brave with 1 click.
+                </p>
+
+                <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs space-y-2 mb-4">
+                  <div className="font-semibold text-slate-800 flex items-center gap-1.5">
+                    <Bookmark className="w-3.5 h-3.5 text-teal-600" />
+                    <span>Browser Bookmarklet</span>
+                  </div>
+                  <p className="text-[11px] text-slate-500">
+                    Drag the button below to your bookmarks bar. Click it on any page to instantly capture:
+                  </p>
+                  <a
+                    href={bookmarkletCode}
+                    onClick={(e) => {
+                      e.preventDefault()
+                      toast('Drag this button to your browser bookmarks bar!', { icon: '📌' })
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-teal-600 text-white font-semibold shadow-xs hover:bg-teal-700 cursor-grab active:cursor-grabbing transition-colors"
+                  >
+                    <span>🧠 Save to MemoryVault</span>
+                  </a>
+                </div>
+              </div>
+
+              <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
+                <span className="text-slate-500">Need background sync & hotkeys?</span>
+                <a
+                  href="/extension"
+                  className="inline-flex items-center gap-1 text-teal-700 font-semibold hover:underline"
+                >
+                  <span>Get Chrome Extension</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </a>
               </div>
             </div>
 

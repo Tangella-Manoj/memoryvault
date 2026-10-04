@@ -1,19 +1,21 @@
 import { Link, useNavigate } from 'react-router-dom'
-import { Brain, LayoutDashboard, Library, Sparkles, BarChart3, User, LogOut, Download, Puzzle } from 'lucide-react'
+import { Brain, LayoutDashboard, Library, Sparkles, BarChart3, User, LogOut, Download, Puzzle, Plus } from 'lucide-react'
 import { useAuthStore } from '../../stores/authStore'
+import { useUiStore } from '../../stores/uiStore'
 
 const navItems = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/vault', label: 'Vault', icon: Library },
   { to: '/rediscovery', label: 'Rediscovery', icon: Sparkles },
   { to: '/analytics', label: 'Analytics', icon: BarChart3 },
-  { to: '/plugins', label: 'Plugins', icon: Puzzle },
+  { to: '/plugins', label: 'Connectors', icon: Sparkles },
   { to: '/profile', label: 'Profile', icon: User },
 ]
 
 export default function Navbar() {
   const user = useAuthStore((s) => s.user)
   const logout = useAuthStore((s) => s.logout)
+  const openSaveModal = useUiStore((s) => s.openSaveModal)
   const navigate = useNavigate()
 
   function handleLogout() {
@@ -42,6 +44,14 @@ export default function Navbar() {
       </div>
 
       <div className="flex items-center gap-3">
+        <button
+          onClick={openSaveModal}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-teal-600 hover:bg-teal-700 shadow-xs transition-colors cursor-pointer"
+          title="Quick save any copied link"
+        >
+          <Plus className="w-3.5 h-3.5" />
+          <span>Save Link</span>
+        </button>
         <Link
           to="/extension"
           className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-teal-800 bg-teal-50 hover:bg-teal-100 border border-teal-200 transition-colors"
