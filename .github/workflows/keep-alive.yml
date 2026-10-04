@@ -1,0 +1,23 @@
+name: Render Keep-Alive
+
+on:
+  schedule:
+    # Runs every 10 minutes to prevent Render free-tier container spin-down (inactivity timeout is 15m)
+    - cron: '*/10 * * * *'
+  workflow_dispatch: # Allows manual trigger from GitHub UI
+
+jobs:
+  ping:
+    name: Ping API Health Endpoint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send Warmup Ping to MemoryVault API
+        run: |
+          echo "Pinging https://api.stacknode.dev/actuator/health..."
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 https://api.stacknode.dev/actuator/health)
+          echo "Health check HTTP status: $STATUS"
+          if [ "$STATUS" -ge 200 ] && [ "$STATUS" -lt 400 ]; then
+            echo "API is warm and operational."
+          else
+            echo "Warning: API returned status $STATUS (may be cold-starting)."
+          fi

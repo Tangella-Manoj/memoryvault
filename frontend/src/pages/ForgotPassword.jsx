@@ -50,8 +50,13 @@ export default function ForgotPassword() {
       const res = await api.post('/auth/forgot-password', { email: cleanEmail })
       setTargetEmail(cleanEmail)
 
+      const emailDelivered = res.data?.data?.emailDelivered
       const code = res.data?.data?.resetCode
-      if (code) {
+      if (emailDelivered) {
+        setGeneratedCode(null)
+        setStep2Val('code', '')
+        toast.success('Check your email for the 6-digit reset code!')
+      } else if (code) {
         setGeneratedCode(code)
         setStep2Val('code', code)
         toast.success(`Verification code generated: ${code}`, { duration: 6000 })

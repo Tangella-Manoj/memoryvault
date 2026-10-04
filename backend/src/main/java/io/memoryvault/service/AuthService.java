@@ -180,11 +180,14 @@ public class AuthService {
 
         if (emailConfigured) {
             try {
-                emailService.sendPasswordResetEmailAsync(email, code);
-                emailDispatched = true;
-                log.info("[PasswordReset] Dispatched async reset email to {}", email);
+                emailDispatched = emailService.sendPasswordResetEmail(email, code);
+                if (emailDispatched) {
+                    log.info("[PasswordReset] Sent reset email to {}", email);
+                } else {
+                    log.warn("[PasswordReset] Email delivery returned false for {}. Falling back to direct code.", email);
+                }
             } catch (Exception e) {
-                log.error("[PasswordReset] Failed to trigger async email dispatch for {}: {}", email, e.getMessage());
+                log.error("[PasswordReset] Failed to trigger email dispatch for {}: {}", email, e.getMessage());
             }
         } else {
             log.warn("[PasswordReset] Outbound email service is not configured (set RESEND_API_KEY or SMTP_HOST). Reset code for {}: {}", email, code);

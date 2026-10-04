@@ -336,8 +336,8 @@ class AuthServiceTest {
     void forgotPassword_emailServiceConfigured_prodMode_dispatchesEmailAndHidesCode() {
         EmailService mockEmailService = mock(EmailService.class);
         when(mockEmailService.isConfigured()).thenReturn(true);
-        when(mockEmailService.sendPasswordResetEmailAsync(anyString(), anyString()))
-                .thenReturn(java.util.concurrent.CompletableFuture.completedFuture(true));
+        when(mockEmailService.sendPasswordResetEmail(anyString(), anyString()))
+                .thenReturn(true);
 
         AuthService prodAuthService = new AuthService(
                 userRepository,
@@ -361,7 +361,39 @@ class AuthServiceTest {
         assertThat(resp.get("resetCode")).isNull(); // NOT exposed in prod!
         assertThat(resp.get("message").toString()).contains("sent to your email inbox");
 
-        verify(mockEmailService).sendPasswordResetEmailAsync(eq("prod@test.com"), anyString());
+        verify(mockEmailService).sendPasswordResetEmail(eq("prod@test.com"), anyString());
+    }
+
+    @Test
+    void forgotPassword_emailServiceFailsDelivery_fallsBackToDirectCode() {
+        EmailService mockEmailService = mock(EmailService.class);
+        when(mockEmailService.isConfigured()).thenReturn(true);
+        when(mockEmailService.sendPasswordResetEmail(anyString(), anyString()))
+                .thenReturn(false); // Delivery failed!
+
+        AuthService prodAuthService = new AuthService(
+                userRepository,
+                refreshTokenRepository,
+                passwordResetTokenRepository,
+                passwordEncoder,
+                jwtService,
+                mockEmailService,
+                604800000L,
+                "vault.test.com",
+                false // exposeResetCode = false
+        );
+
+        User user = User.builder().id(1L).email("fail@test.com").passwordHash("hash").displayName("Fail").build();
+        when(userRepository.findByEmailIgnoreCase("fail@test.com")).thenReturn(Optional.of(user));
+
+        Map<String, Object> resp = prodAuthService.forgotPassword(new ForgotPasswordRequest("fail@test.com"));
+
+        assertThat(resp.get("email")).isEqualTo("fail@test.com");
+        assertThat(resp.get("emailDelivered")).isEqualTo(false);
+        assertThat(resp.get("resetCode")).isNotNull(); // Fallback code provided!
+        assertThat(resp.get("resetCode").toString()).hasSize(6);
+
+        verify(mockEmailService).sendPasswordResetEmail(eq("fail@test.com"), anyString());
     }
 
     @Test
