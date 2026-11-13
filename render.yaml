@@ -30,17 +30,27 @@ services:
         value: prod
       # PORT is injected automatically by Render; application.yml reads it.
       - key: DB_HOST
-        sync: false
+        fromDatabase:
+          name: memoryvault-db
+          property: host
       - key: DB_PORT
-        sync: false
+        fromDatabase:
+          name: memoryvault-db
+          property: port
       - key: DB_NAME
-        sync: false
+        fromDatabase:
+          name: memoryvault-db
+          property: database
       - key: DB_USER
-        sync: false
+        fromDatabase:
+          name: memoryvault-db
+          property: user
       - key: DB_PASSWORD
-        sync: false
+        fromDatabase:
+          name: memoryvault-db
+          property: password
       - key: JWT_SECRET
-        sync: false
+        generateValue: true
       - key: JWT_ACCESS_EXPIRY_MS
         value: "900000"
       - key: JWT_REFRESH_EXPIRY_MS
@@ -50,7 +60,7 @@ services:
       - key: HUGGINGFACE_API_KEY
         sync: false
       - key: CORS_ALLOWED_ORIGINS
-        value: https://memoryvault.stacknode.dev
+        value: https://memoryvault.stacknode.dev,http://localhost:5173
       - key: FRONTEND_BASE_URL
         value: https://memoryvault.stacknode.dev
       - key: VAULT_EMAIL_DOMAIN
@@ -66,7 +76,7 @@ services:
       - key: GOOGLE_REDIRECT_URI
         value: https://api.stacknode.dev/api/integrations/youtube/callback
       - key: TOKEN_ENCRYPTION_KEY
-        sync: false
+        generateValue: true
       - key: VAPID_PUBLIC_KEY
         sync: false
       - key: VAPID_PRIVATE_KEY
@@ -87,4 +97,11 @@ services:
         value: MemoryVault <onboarding@resend.dev>
       - key: EXPOSE_RESET_CODE
         value: "false"
+
+databases:
+  - name: memoryvault-db
+    databaseName: memoryvault
+    user: memoryvault
+    plan: free
+    region: oregon
 
